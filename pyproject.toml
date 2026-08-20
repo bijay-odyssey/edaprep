@@ -1,0 +1,79 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "edaprep"
+dynamic = ["version"]
+description = "Transparent, leakage-safe EDA and ML preprocessing with an explainable planner."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "bijay", email = "bijaybeezoe@gmail.com" }]
+keywords = ["eda", "preprocessing", "data-cleaning", "machine-learning", "pandas"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Typing :: Typed",
+]
+dependencies = [
+    "numpy>=1.21",
+    "pandas>=1.5",
+    "scipy>=1.7",
+]
+
+[project.optional-dependencies]
+visualization = ["matplotlib>=3.5"]
+advanced = ["scikit-learn>=1.1"]
+arrow = ["pyarrow>=10.0"]
+all = ["matplotlib>=3.5", "scikit-learn>=1.1", "pyarrow>=10.0"]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "hypothesis>=6.60",
+    "scikit-learn>=1.1",
+    "matplotlib>=3.5",
+]
+
+[project.urls]
+Documentation = "https://github.com/bijay-odyssey/edaprep#readme"
+Source = "https://github.com/bijay-odyssey/edaprep"
+
+[tool.setuptools.dynamic]
+version = { attr = "edaprep._version.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+edaprep = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+    "slow: long-running tests (deselect with '-m \"not slow\"')",
+    "benchmark: performance measurement, not correctness",
+]
+filterwarnings = ["error::RuntimeWarning"]
+
+[tool.ruff]
+line-length = 96
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RET"]
+ignore = ["B008"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
