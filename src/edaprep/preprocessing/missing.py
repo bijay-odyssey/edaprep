@@ -216,7 +216,9 @@ class MissingValueHandler(Transformer, ColumnTransformerMixin):
             # by value, so refitting on identical data gives an identical answer.
             return modes.iloc[0] if len(modes) else None
         raise ConfigurationError.unknown_option(
-            "imputation strategy", strategy, sorted(_LEARNED | _ROWWISE | {"constant", "missing_category", "none"})
+            "imputation strategy",
+            strategy,
+            sorted(_LEARNED | _ROWWISE | {"constant", "missing_category", "none"}),
         )
 
     def _transform(self, X: pd.DataFrame, context: FitContext) -> pd.DataFrame:
@@ -254,7 +256,11 @@ class MissingValueHandler(Transformer, ColumnTransformerMixin):
                         continue
                     replacements[column] = _fill(series, value)
 
-                after = int(replacements[column].isna().sum()) if column in replacements else n_missing
+                after = (
+                    int(replacements[column].isna().sum())
+                    if column in replacements
+                    else n_missing
+                )
                 filled_counts[column] = n_missing - after
 
             timer.columns = sorted(filled_counts)

@@ -21,7 +21,7 @@ import pandas as pd
 
 from ..core.base import ColumnTransformerMixin, Transformer
 from ..core.context import FitContext
-from ..types import SemanticType, Severity, Stage
+from ..types import Severity, Stage
 
 __all__ = ["DataTypeInference"]
 

@@ -84,7 +84,7 @@ class _CategoricalBase(Transformer, ColumnTransformerMixin):
                 continue
             dtype = X[name].dtype
             if (
-                dtype == object
+                pd.api.types.is_object_dtype(dtype)
                 or isinstance(dtype, (pd.CategoricalDtype, pd.StringDtype))
                 or pd.api.types.is_bool_dtype(dtype)
             ):
@@ -275,13 +275,30 @@ class OneHotEncoder(_CategoricalBase):
                 if column not in X.columns:
                     continue
                 series = self._as_object(X[column])
-                known = series.isin(categories)
-                n_unknown = int((series.notna() & ~known).sum())
+
+                # One factorize, then integer comparisons.  Comparing an object array
+                # against each category directly (`values == category`) makes NumPy
+                # fall back to elementwise Python comparison, which is slow and raises
+                # a FutureWarning whenever the array mixes types -- exactly the case for
+                # an integer-coded column held as object.
+                codes, uniques = pd.factorize(series, use_na_sentinel=True)
+                position = {value: i for i, value in enumerate(uniques)}
+                # -2 is unreachable as a factorize code, so a category absent from this
+                # frame yields an all-zero indicator rather than matching anything.
+                wanted_codes = [position.get(c, -2) for c in categories]
+
+                known_codes = {c for c in wanted_codes if c >= 0}
+                n_unknown = int(
+                    np.count_nonzero(
+                        (codes >= 0) & ~np.isin(codes, list(known_codes) or [-2])
+                    )
+                )
                 if n_unknown:
                     unknown_counts[column] = n_unknown
                     if self.handle_unknown == "error":
                         unseen = sorted(
-                            set(series[series.notna() & ~known].unique()), key=_sort_key
+                            {u for i, u in enumerate(uniques) if i not in known_codes},
+                            key=_sort_key,
                         )[:5]
                         raise ValueError(
                             f"Column {column!r} contains {n_unknown} value(s) not seen "
@@ -289,10 +306,10 @@ class OneHotEncoder(_CategoricalBase):
                             f"handle_unknown='ignore' to encode them as all-zero "
                             f"indicators, or group rare levels before encoding."
                         )
-                values = series.to_numpy()
-                for category, name in zip(categories, self.output_names_[column]):
+
+                for code, name in zip(wanted_codes, self.output_names_[column]):
                     added[name] = pd.Series(
-                        (values == category).astype(self.dtype), index=X.index, name=name
+                        (codes == code).astype(self.dtype), index=X.index, name=name
                     )
 
             if unknown_counts:

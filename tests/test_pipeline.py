@@ -15,7 +15,7 @@ from edaprep.planning import Plan, Planner
 from edaprep.planning.rules import Rule, default_rules
 from edaprep.preprocessing import MissingValueHandler, Scaler
 from edaprep.profiling import profile
-from edaprep.types import ModelFamily, SemanticType, Stage
+from edaprep.types import SemanticType, Stage
 
 
 @pytest.fixture
@@ -162,7 +162,7 @@ def test_model_family_changes_the_plan(frame) -> None:
 def test_tree_family_skips_transforms(frame) -> None:
     tree = AutoPipeline(target="y", model_family="tree", random_state=0).fit(frame)
     decisions = [d for d in tree.plan_.decisions if d.stage is Stage.TRANSFORM]
-    assert set(d.action for d in decisions) == {"no_transform"}
+    assert {d.action for d in decisions} == {"no_transform"}
     assert "invariant to monotone transforms" in decisions[0].rationale
     assert not any(s.stage is Stage.TRANSFORM for s in tree.plan_)
 

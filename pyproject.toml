@@ -70,7 +70,22 @@ target-version = "py39"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RET"]
-ignore = ["B008"]
+ignore = [
+    "B008",
+    # PEP 585/604 modernisation (dict[str, int], X | None).  Deliberately not adopted:
+    # the package supports Python 3.9, where those forms are only legal inside
+    # annotations (via `from __future__ import annotations`) and not in the runtime
+    # positions this codebase also uses them in -- dataclass field types resolved by
+    # `dataclasses.fields`, and `Stage.coerce` argument checks.  Mixing the two
+    # spellings would be worse than consistently using `typing`.
+    "UP006",
+    "UP007",
+    "UP035",
+    "UP045",
+    # Quoted annotations are load-bearing here: `Axes` and `Figure` are imported only
+    # under TYPE_CHECKING so that matplotlib stays an optional dependency.
+    "UP037",
+]
 
 [tool.mypy]
 python_version = "3.9"

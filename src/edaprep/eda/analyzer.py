@@ -28,7 +28,8 @@ import pandas as pd
 
 from ..config import Config
 from ..exceptions import EmptyDataError
-from ..profiling.profiler import DatasetProfile, profile as profile_dataset
+from ..profiling.profiler import DatasetProfile
+from ..profiling.profiler import profile as profile_dataset
 from ..profiling.quality import QualityIssue
 from ..types import AnalysisLevel, SemanticType, Severity
 from .categorical import categorical_summary

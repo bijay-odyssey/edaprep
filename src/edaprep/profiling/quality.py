@@ -115,7 +115,9 @@ def detect_sentinels(
                 continue
             counts = series.value_counts(dropna=True)
             per_sentinel = {
-                str(c): int(counts.get(c, 0)) for c in hits if int(counts.get(c, 0)) >= min_count
+                str(c): int(counts.get(c, 0))
+                for c in hits
+                if int(counts.get(c, 0)) >= min_count
             }
         else:
             # Count first, then normalise the *distinct* values.  Normalising every
@@ -208,7 +210,7 @@ def missingness_correlation(
     Returns ``[(col_a, col_b, correlation)]`` sorted by descending absolute
     correlation, restricted to pairs above ``threshold``.
     """
-    targets = [c for c in (columns if columns is not None else frame.columns)]
+    targets = list(columns if columns is not None else frame.columns)
     mask = frame[targets].isna()
     # Columns with no variation in missingness carry no information and would produce
     # NaN correlations.
@@ -242,7 +244,7 @@ def detect_duplicate_columns(
     O(n * p) rather than the O(n * p^2) of pairwise comparison.  NaN positions must
     match too, which ``pandas.util.hash_pandas_object`` handles consistently.
     """
-    targets = [c for c in (columns if columns is not None else frame.columns)]
+    targets = list(columns if columns is not None else frame.columns)
     if len(targets) < 2:
         return []
 
@@ -283,7 +285,7 @@ def detect_mixed_types(
     A column mixing ``str`` and ``float`` usually means a parse failure upstream, and
     it silently breaks sorting, grouping and comparison.
     """
-    targets = [c for c in (columns if columns is not None else frame.columns)]
+    targets = list(columns if columns is not None else frame.columns)
     out: Dict[str, List[str]] = {}
     for name in targets:
         series = frame[name]
@@ -306,7 +308,7 @@ def detect_whitespace_issues(
     ``"Yes"`` and ``"Yes "`` become two categories, inflating cardinality and creating
     a category the model will never see again.
     """
-    targets = [c for c in (columns if columns is not None else frame.columns)]
+    targets = list(columns if columns is not None else frame.columns)
     out: Dict[str, int] = {}
     for name in targets:
         series = frame[name]
@@ -330,7 +332,7 @@ def detect_case_variants(
     frame: pd.DataFrame, columns: Optional[Iterable[str]] = None, max_cardinality: int = 5000
 ) -> Dict[str, List[List[str]]]:
     """Categories that differ only by case: ``["USA", "usa", "Usa"]``."""
-    targets = [c for c in (columns if columns is not None else frame.columns)]
+    targets = list(columns if columns is not None else frame.columns)
     out: Dict[str, List[List[str]]] = {}
     for name in targets:
         series = frame[name]

@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from ..config import Config
 from ..profiling.profiler import DatasetProfile
-from ..types import SemanticType, Severity, Stage
+from ..types import Stage
 from .decisions import Decision, Plan, PlannedStep
 from .rules import RuleContext, RuleSet, default_rules
 

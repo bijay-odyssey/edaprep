@@ -259,7 +259,9 @@ class ColumnTransformerMixin:
 
     @staticmethod
     def _rebuild(
-        X: pd.DataFrame, replacements: Dict[str, pd.Series], added: Optional[Dict[str, pd.Series]] = None
+        X: pd.DataFrame,
+        replacements: Dict[str, pd.Series],
+        added: Optional[Dict[str, pd.Series]] = None,
     ) -> pd.DataFrame:
         """Return a new frame with ``replacements`` applied and ``added`` appended."""
         if not replacements and not added:
@@ -270,8 +272,7 @@ class ColumnTransformerMixin:
             data[key] = replacements.get(key, X[name])
         for key, series in (added or {}).items():
             data[key] = series
-        out = pd.DataFrame(data, index=X.index, copy=False)
-        return out
+        return pd.DataFrame(data, index=X.index, copy=False)
 
     @staticmethod
     def _numeric_values(series: pd.Series) -> np.ndarray:

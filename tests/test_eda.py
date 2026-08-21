@@ -128,7 +128,8 @@ def test_outlier_summary_shows_methods_disagreeing(analysis_frame) -> None:
 
 def test_correlated_pairs_finds_the_collinear_pair(analysis_frame) -> None:
     report = EDA(analysis_frame, target="y").analyze("standard")
-    pairs = {frozenset((a, b)) for a, b in report.correlated_pairs[["column_a", "column_b"]].to_numpy()}
+    found = report.correlated_pairs[["column_a", "column_b"]].to_numpy()
+    pairs = {frozenset((a, b)) for a, b in found}
     assert frozenset(("informative", "collinear_a")) in pairs
 
 

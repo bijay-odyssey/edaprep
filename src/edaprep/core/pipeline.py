@@ -25,7 +25,8 @@ from ..config import Config
 from ..exceptions import ConfigurationError, NotFittedError, SchemaError
 from ..planning.decisions import Plan
 from ..planning.planner import Planner
-from ..profiling.profiler import DatasetProfile, profile as profile_dataset
+from ..profiling.profiler import DatasetProfile
+from ..profiling.profiler import profile as profile_dataset
 from ..reporting.report import Report
 from ..types import ModelFamily, Stage
 from .base import Transformer, check_is_fitted

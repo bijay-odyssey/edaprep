@@ -353,9 +353,9 @@ class OutlierHandler(Transformer, ColumnTransformerMixin):
             if cp is not None:
                 if cp.semantic is not SemanticType.NUMERIC:
                     continue
-            elif not pd.api.types.is_numeric_dtype(X[name].dtype):
-                continue
-            elif pd.api.types.is_bool_dtype(X[name].dtype):
+            elif not pd.api.types.is_numeric_dtype(
+                X[name].dtype
+            ) or pd.api.types.is_bool_dtype(X[name].dtype):
                 continue
             # Columns created mid-pipeline (missing indicators, one-hot columns,
             # calendar flags) have no profile entry, so the semantic check above cannot

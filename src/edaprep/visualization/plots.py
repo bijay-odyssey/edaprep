@@ -22,7 +22,8 @@ import numpy as np
 import pandas as pd
 
 from ..config import Config
-from ..profiling.profiler import DatasetProfile, profile as profile_dataset
+from ..profiling.profiler import DatasetProfile
+from ..profiling.profiler import profile as profile_dataset
 from ..types import SemanticType
 
 if TYPE_CHECKING:  # pragma: no cover

@@ -110,7 +110,7 @@ def measure(fn: Callable[[], object], repeat: int = 3) -> tuple:
 def make_frame(rows: int, seed: int = 0) -> pd.DataFrame:
     """A frame with the shape of notebook practice's datasets."""
     gen = np.random.default_rng(seed)
-    frame = pd.DataFrame(
+    return pd.DataFrame(
         {
             "row_id": np.arange(rows),
             "age": np.where(gen.random(rows) < 0.08, np.nan, gen.normal(40, 12, rows)),
@@ -120,7 +120,9 @@ def make_frame(rows: int, seed: int = 0) -> pd.DataFrame:
             "ratio": gen.beta(2, 5, rows),
             "tenure": gen.integers(0, 120, rows).astype(float),
             "city": gen.choice([f"city_{i:04d}" for i in range(500)], rows),
-            "segment": gen.choice(["a", "b", "c", "d", "e"], rows, p=[0.4, 0.3, 0.15, 0.1, 0.05]),
+            "segment": gen.choice(
+                ["a", "b", "c", "d", "e"], rows, p=[0.4, 0.3, 0.15, 0.1, 0.05]
+            ),
             "channel": gen.choice(["web", "app", "branch"], rows),
             "country": gen.choice([f"c{i}" for i in range(30)], rows),
             "active": gen.choice([True, False], rows),
@@ -129,7 +131,6 @@ def make_frame(rows: int, seed: int = 0) -> pd.DataFrame:
             "target": (gen.random(rows) < 0.25).astype(int),
         }
     )
-    return frame
 
 
 def make_wide_frame(rows: int, columns: int, seed: int = 1) -> pd.DataFrame:
@@ -444,7 +445,12 @@ def bench_pipelines(rows: int, repeat: int) -> List[Result]:
                             SkPipeline(
                                 [
                                     ("impute", SimpleImputer(strategy="most_frequent")),
-                                    ("encode", SkOneHot(handle_unknown="ignore", sparse_output=False)),
+                                    (
+                                        "encode",
+                                        SkOneHot(
+                                            handle_unknown="ignore", sparse_output=False
+                                        ),
+                                    ),
                                 ]
                             ),
                             categorical,

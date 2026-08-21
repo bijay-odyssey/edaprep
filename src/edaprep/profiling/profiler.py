@@ -350,7 +350,9 @@ def _make_sample(
     }
 
 
-def _target_kind(series: pd.Series, thresholds: Thresholds) -> Tuple[str, Optional[int], Optional[float]]:
+def _target_kind(
+    series: pd.Series, thresholds: Thresholds
+) -> Tuple[str, Optional[int], Optional[float]]:
     """Classify the target and, for classification, measure imbalance."""
     clean = series.dropna()
     if clean.empty:
@@ -414,7 +416,7 @@ def _correlation_ratio_batch(
     codes, levels = pd.factorize(target, use_na_sentinel=True)
     n_levels = len(levels)
     if n_levels < 2 or len(values) == 0:
-        return {name: 0.0 for name in names}
+        return dict.fromkeys(names, 0.0)
 
     # Materialise in column chunks: the whole frame as one float64 array is 48 MiB on
     # a 20,000 x 300 input, and each per-class mask copies a slice of it again.  A
@@ -675,7 +677,7 @@ def profile(
         eligible = [
             n
             for n in numeric_names
-            if n != target and not inferences[n].semantic is SemanticType.CONSTANT
+            if n != target and inferences[n].semantic is not SemanticType.CONSTANT
         ]
         if eligible:
             batched_eta = _correlation_ratio_batch(sample[target], sample[eligible])
@@ -691,7 +693,6 @@ def profile(
         is_near_constant = (
             not is_constant and modal_freq >= thresholds.near_constant_ratio and present > 0
         )
-        unique_ratio = (n_unique[key] / present) if present else 0.0
 
         association: Optional[float] = None
         association_kind: Optional[str] = None

@@ -59,7 +59,8 @@ def outlier_summary(
         if n_finite == 0:
             continue
 
-        row = {"column": name, "skew": round(float(cp.skew), 3) if np.isfinite(cp.skew) else None}
+        skew = round(float(cp.skew), 3) if np.isfinite(cp.skew) else None
+        row = {"column": name, "skew": skew}
         for label, detector in detectors.items():
             bounds = detector(values)
             count = int(np.count_nonzero(bounds.mask(values)))
@@ -67,8 +68,9 @@ def outlier_summary(
             row[f"pct_{label}"] = round(count / n_finite * 100, 2)
 
         row["recommended"] = _recommended(cp.skew, thresholds)
-        row["lower"] = round(float(detectors[_detector_key(row["recommended"])](values).lower), 4)
-        row["upper"] = round(float(detectors[_detector_key(row["recommended"])](values).upper), 4)
+        chosen = detectors[_detector_key(row["recommended"])](values)
+        row["lower"] = round(float(chosen.lower), 4)
+        row["upper"] = round(float(chosen.upper), 4)
         rows.append(row)
 
     frame = pd.DataFrame(rows)

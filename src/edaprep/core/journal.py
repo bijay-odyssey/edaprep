@@ -212,7 +212,9 @@ class Journal:
 
 
 class _Timer:
-    def __init__(self, journal: Journal, stage: Stage, transformer: str, action: str, phase: str):
+    def __init__(
+        self, journal: Journal, stage: Stage, transformer: str, action: str, phase: str
+    ):
         self._journal = journal
         self._stage = stage
         self._transformer = transformer

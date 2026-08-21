@@ -22,7 +22,7 @@ from edaprep.profiling.statistics import (
     skewness,
 )
 
-TOL = dict(rel=1e-9, abs=1e-9)
+TOL = {"rel": 1e-9, "abs": 1e-9}
 
 
 @pytest.fixture

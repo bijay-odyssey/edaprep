@@ -19,7 +19,7 @@ being looked at.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
@@ -145,10 +145,9 @@ def target_relationships(
         frame["p_value"] = frame["p_value"].round(6)
 
     frame["_sort"] = frame["association"].fillna(-1)
-    frame = frame.sort_values("_sort", ascending=False, ignore_index=True).drop(
+    return frame.sort_values("_sort", ascending=False, ignore_index=True).drop(
         columns="_sort"
     )
-    return frame
 
 
 def _test(
