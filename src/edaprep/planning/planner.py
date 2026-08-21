@@ -111,8 +111,17 @@ class Planner:
 
         steps = self._build_steps(decisions_by_stage, profile, context, dropped)
 
+        emitted = {id(d) for step in steps for d in step.decisions}
+        noops = [
+            d
+            for stage_decisions in decisions_by_stage.values()
+            for d in stage_decisions
+            if id(d) not in emitted
+        ]
+
         return Plan(
             steps=tuple(steps),
+            noop_decisions=tuple(noops),
             target=target,
             model_family=str(self.config.model_family) if self.config.model_family else None,
             dropped_columns=dropped,

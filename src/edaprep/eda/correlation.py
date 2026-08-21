@@ -135,26 +135,34 @@ def variance_inflation(
     corr = np.nan_to_num(corr, nan=0.0)
     np.fill_diagonal(corr, 1.0)
 
-    try:
-        inverse = np.linalg.inv(corr)
-        singular = False
-    except np.linalg.LinAlgError:
+    # Perfect collinearity has to be detected before inverting, not after.  A plain
+    # inverse raises only when the matrix is *exactly* singular in floating point,
+    # which it rarely is; and the pseudo-inverse used as a fallback quietly returns a
+    # small, finite diagonal, so an infinite VIF would be reported as 1.0 -- the
+    # opposite of the truth.  The singular value decomposition answers the question
+    # directly: any right singular vector with a near-zero singular value is a linear
+    # dependency, and every column with weight in it has an undefined (infinite) VIF.
+    _, singular_values, right_vectors = np.linalg.svd(corr)
+    tolerance = singular_values.max() * len(columns) * np.finfo(np.float64).eps
+    null_space = right_vectors[singular_values <= tolerance]
+
+    if null_space.size:
+        involved = np.any(np.abs(null_space) > 1e-8, axis=0)
         inverse = np.linalg.pinv(corr)
-        singular = True
+    else:
+        involved = np.zeros(len(columns), dtype=bool)
+        inverse = np.linalg.inv(corr)
 
     vif = np.diag(inverse).astype(float)
     vif = np.where(vif < 1.0, 1.0, vif)  # numerical noise can push it just below 1
-    if singular:
-        # A pseudo-inverse silently caps the diagonal, so perfect collinearity would
-        # otherwise show as a merely large VIF rather than an infinite one.
-        rank = np.linalg.matrix_rank(corr)
-        if rank < len(columns):
-            vif = np.where(vif > 1e10, np.inf, vif)
+    vif = np.where(involved, np.inf, vif)
 
     frame_out = pd.DataFrame(
         {
             "column": columns,
-            "vif": np.round(vif, 3),
+            # Six decimals, not three: VIF is compared against the textbook definition
+            # in the tests, and rounding to three would make that comparison vacuous.
+            "vif": np.round(vif, 6),
             "note": [_vif_note(v) for v in vif],
         }
     )

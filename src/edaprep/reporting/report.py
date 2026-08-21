@@ -275,14 +275,18 @@ class Report:
 
         effects: Dict[str, str] = {}
         for entry in entries:
-            for key in ("n_values_imputed", "n_outliers", "n_values_grouped"):
-                per_column = entry.effect.get(
-                    "per_column" if key == "n_values_imputed" else key
-                )
-                if isinstance(per_column, dict):
-                    for column, count in per_column.items():
-                        if count:
-                            effects[column] = f"{count:,} value(s) affected"
+            for key in ("per_column", "n_outliers", "n_values_grouped"):
+                per_column = entry.effect.get(key)
+                if not isinstance(per_column, dict):
+                    continue
+                for column, count in per_column.items():
+                    # Some transformers record a nested breakdown per column
+                    # (DataTypeInference logs {column: {action: count}}); only a plain
+                    # count can be rendered as a number here.
+                    if isinstance(count, bool) or not isinstance(count, (int, float)):
+                        continue
+                    if count:
+                        effects[column] = f"{int(count):,} value(s) affected"
 
         lines: List[str] = []
         if decisions:

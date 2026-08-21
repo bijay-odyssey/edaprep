@@ -220,10 +220,17 @@ def _narrow_integer(series: pd.Series) -> str:
 
 
 def _float32_safe(series: pd.Series) -> bool:
-    """True when every value survives a float64 -> float32 -> float64 round trip.
+    """True when narrowing this column to float32 loses nothing that matters.
 
-    Checks the actual values rather than just the range: a column can sit well inside
-    float32's range and still lose significant digits.
+    Two things are checked, and a third is deliberately not.
+
+    Checked: the range fits float32 (otherwise values become inf), and distinct values
+    stay distinct after the round trip (otherwise rows that differ in the data become
+    identical to the model, which is real information loss).
+
+    Not checked: whether digits beyond float32's ~7 significant figures survive.  They
+    do not, and cannot; that is what ``downcast_floats`` opts into, and rejecting every
+    column with more than 7 digits would make the option useless.
     """
     values = series.to_numpy(dtype=np.float64, na_value=np.nan, copy=False)
     finite = values[np.isfinite(values)]
@@ -232,7 +239,7 @@ def _float32_safe(series: pd.Series) -> bool:
     if np.abs(finite).max() > np.finfo(np.float32).max:
         return False
     round_tripped = finite.astype(np.float32).astype(np.float64)
-    return bool(np.allclose(finite, round_tripped, rtol=1e-6, atol=0.0))
+    return len(np.unique(round_tripped)) == len(np.unique(finite))
 
 
 _TRUE = frozenset({"true", "t", "yes", "y", "1", "1.0"})

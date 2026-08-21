@@ -49,7 +49,14 @@ class Decision:
 
     @property
     def is_noop(self) -> bool:
-        return self.action in ("none", "ignore", "keep")
+        """True when the decision is "do nothing", by name.
+
+        A no-op decision is still recorded and still explained -- "no scaling, because
+        tree models are invariant to monotone rescaling" is exactly the kind of thing
+        the user should be told -- but the planner must not emit a transformer step
+        for it.  Every such action is named ``no_*`` by convention.
+        """
+        return self.action.startswith("no_") or self.action in ("none", "ignore", "keep")
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -139,6 +146,10 @@ class Plan:
     """
 
     steps: Tuple[PlannedStep, ...] = ()
+    #: Decisions that resolved to "do nothing".  They emit no transformer step, but
+    #: they are the answer to "why was my column left alone?", so they are kept and
+    #: rendered by :meth:`explain`.
+    noop_decisions: Tuple[Decision, ...] = ()
     target: Optional[str] = None
     model_family: Optional[str] = None
     #: Columns removed before any transformation, with the reason.
@@ -157,7 +168,10 @@ class Plan:
 
     @property
     def decisions(self) -> List[Decision]:
-        return [d for step in self.steps for d in step.decisions]
+        """Every decision, including the ones that resolved to doing nothing."""
+        return [d for step in self.steps for d in step.decisions] + list(
+            self.noop_decisions
+        )
 
     def for_column(self, column: str) -> List[Decision]:
         """Every decision affecting ``column``, in stage order."""
@@ -203,7 +217,7 @@ class Plan:
     def without_columns(self, columns: Sequence[str]) -> "Plan":
         """A copy with ``columns`` removed from every step."""
         drop = set(columns)
-        steps = []
+        steps: List[PlannedStep] = []
         for step in self.steps:
             kept = tuple(c for c in step.columns if c not in drop)
             if not kept:
@@ -215,7 +229,11 @@ class Plan:
                     decisions=tuple(d for d in step.decisions if d.column not in drop),
                 )
             )
-        return replace(self, steps=tuple(steps))
+        return replace(
+            self,
+            steps=tuple(steps),
+            noop_decisions=tuple(d for d in self.noop_decisions if d.column not in drop),
+        )
 
     # -- serialisation ---------------------------------------------------------------
 
@@ -227,12 +245,16 @@ class Plan:
             "dropped_columns": dict(self.dropped_columns),
             "notes": list(self.notes),
             "steps": [s.to_dict() for s in self.steps],
+            "noop_decisions": [d.to_dict() for d in self.noop_decisions],
         }
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Plan":
         return cls(
             steps=tuple(PlannedStep.from_dict(s) for s in data.get("steps", ())),
+            noop_decisions=tuple(
+                Decision.from_dict(d) for d in data.get("noop_decisions", ())
+            ),
             target=data.get("target"),
             model_family=data.get("model_family"),
             dropped_columns=dict(data.get("dropped_columns", {})),

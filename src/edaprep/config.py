@@ -354,6 +354,22 @@ class Config:
     def __post_init__(self) -> None:
         self.validate()
 
+    def __setattr__(self, name: str, value: Any) -> None:
+        """Coerce enum-valued settings on every assignment, not only at construction.
+
+        ``model_family`` is compared with ``is`` throughout the planner and the
+        transformers, because an enum identity check is the clearest way to say "this
+        exact family".  A plain string assigned after construction --
+        ``config.model_family = "tree"``, the obvious thing to write -- compares equal
+        but is not identical, which silently disabled every one of those checks and
+        made a tree pipeline scale its features.  Coercing here makes the obvious
+        thing correct.  (A property cannot be used: it would shadow the dataclass
+        field and become its own default value.)
+        """
+        if name == "model_family" and value is not None and not isinstance(value, ModelFamily):
+            value = ModelFamily.coerce(value)
+        object.__setattr__(self, name, value)
+
     # -- overrides ---------------------------------------------------------------
 
     def column(self, name: str) -> ColumnConfig:
@@ -398,8 +414,6 @@ class Config:
             self.handle_unknown_categories,
             _UNKNOWN_CATEGORY_POLICIES,
         )
-        if self.model_family is not None:
-            self.model_family = ModelFamily.coerce(self.model_family)
         if self.target_encoding_folds < 2:
             raise ConfigurationError(
                 f"target_encoding_folds={self.target_encoding_folds} must be at least 2; "

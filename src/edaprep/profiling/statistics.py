@@ -124,7 +124,11 @@ def _quiet_nan_reductions():
         warnings.filterwarnings("ignore", message="Mean of empty slice")
         warnings.filterwarnings("ignore", message="All-NaN slice encountered")
         warnings.filterwarnings("ignore", message="Degrees of freedom <= 0")
-        with np.errstate(invalid="ignore", divide="ignore"):
+        warnings.filterwarnings("ignore", message="overflow encountered")
+        # Overflow is possible and meaningful: centred values around 1e300 square to
+        # infinity, so the variance genuinely is infinite.  Reporting inf (rendered as
+        # null in JSON, nan in the summary) is truthful; raising is not.
+        with np.errstate(invalid="ignore", divide="ignore", over="ignore"):
             yield
 
 

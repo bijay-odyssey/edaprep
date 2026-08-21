@@ -770,14 +770,18 @@ class CategoricalEncoder(_CategoricalBase):
         return X[keep]
 
     def _compute_feature_names_out(self) -> List[str]:
-        names = [c for c in self.feature_names_in_ if c not in self.dropped_]
+        # Must match _transform exactly.  One-hot appends its indicator columns at the
+        # end rather than expanding in place (expanding in place would mean rebuilding
+        # the frame around each encoded column), so the names have to be appended too.
+        # Ordinal, frequency and target encoding all replace their column in position.
         onehot = self.encoders_.get("onehot")
+        encoded_away = set(getattr(onehot, "categories_", {})) if onehot else set()
+        names = [
+            c
+            for c in self.feature_names_in_
+            if c not in self.dropped_ and c not in encoded_away
+        ]
         if onehot is not None:
-            expanded: List[str] = []
-            for name in names:
-                if name in onehot.categories_:  # type: ignore[attr-defined]
-                    expanded.extend(onehot.output_names_[name])  # type: ignore[attr-defined]
-                else:
-                    expanded.append(name)
-            names = expanded
+            for column in onehot.categories_:  # type: ignore[attr-defined]
+                names.extend(onehot.output_names_[column])  # type: ignore[attr-defined]
         return names

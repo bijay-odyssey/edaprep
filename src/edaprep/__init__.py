@@ -172,8 +172,14 @@ def __getattr__(name: str):
     """
     if name == "visualization":
         try:
-            from . import visualization as module
-        except ImportError as exc:  # pragma: no cover - depends on environment
+            # importlib rather than `from . import visualization`: the latter goes
+            # through _handle_fromlist, which calls getattr on this module again and
+            # re-enters __getattr__, recursing until the stack blows instead of
+            # surfacing the ImportError.
+            import importlib
+
+            module = importlib.import_module("edaprep.visualization")
+        except ImportError as exc:
             raise ImportError(
                 "edaprep.visualization requires matplotlib, which is an optional "
                 "dependency. Install it with: pip install 'edaprep[visualization]'"
