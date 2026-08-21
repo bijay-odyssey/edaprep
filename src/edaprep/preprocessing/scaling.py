@@ -95,6 +95,14 @@ class Scaler(Transformer, ColumnTransformerMixin):
                 SemanticType.CONSTANT,
             ):
                 continue
+            # Indicator columns -- one-hot dummies, missing flags, weekend flags -- are
+            # already on a common 0/1 scale.  Standard-scaling them is harmless
+            # arithmetic but destroys the readability of coefficients and of the frame
+            # itself, and it is not what a hand-written ColumnTransformer does either.
+            # An explicit per_column entry still wins.
+            named = self.per_column is not None and name in self.per_column
+            if not named and int(X[name].nunique(dropna=True)) <= 2:
+                continue
             out.append(name)
         return out
 

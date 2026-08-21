@@ -102,8 +102,8 @@ class Stage(_StrEnum):
     CAST = "cast"
     DROP_COLUMNS = "drop_columns"
     DEDUPLICATE = "deduplicate"
-    DATETIME = "datetime"
     MISSING_FLAG = "missing_flag"
+    DATETIME = "datetime"
     OUTLIERS = "outliers"
     MISSING = "missing"
     TRANSFORM = "transform"
@@ -122,8 +122,8 @@ _STAGE_ORDER = {
     Stage.CAST: 0,
     Stage.DROP_COLUMNS: 1,
     Stage.DEDUPLICATE: 2,
-    Stage.DATETIME: 3,
-    Stage.MISSING_FLAG: 4,
+    Stage.MISSING_FLAG: 3,
+    Stage.DATETIME: 4,
     Stage.OUTLIERS: 5,
     Stage.MISSING: 6,
     Stage.TRANSFORM: 7,
