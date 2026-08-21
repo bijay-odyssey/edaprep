@@ -259,9 +259,13 @@ def infer_semantic_type(
     if not is_numeric:
         probe = _sample_values(series, probe_size, random_state)
 
-        lowered = None
         if n_unique <= 4 and not is_categorical_dtype:
-            lowered = {str(v).strip().lower() for v in series.dropna().unique()}
+            try:
+                lowered = {str(v).strip().lower() for v in series.dropna().unique()}
+            except TypeError:
+                # Unhashable cell values (lists, dicts, sets).  Rare, but a real
+                # export artefact; the column cannot be a boolean, so move on.
+                lowered = set()
             if lowered and lowered <= _BOOLEAN_VOCAB:
                 return TypeInference(
                     SemanticType.BINARY,
@@ -411,15 +415,25 @@ def infer_semantic_type(
             and distinct.max() < 100
             and np.all(np.diff(distinct) == 1)
         )
-        if hints["ordinal"] or small_dense:
-            conf = 0.60 + (0.15 if hints["ordinal"] else 0.0) + (0.05 if small_dense else 0.0)
+        # Dense consecutive integers mean the column is *coded*, not that the codes are
+        # ordered: `payment_type` in 0..4 is as dense as `satisfaction` in 1..5.  Order
+        # is only claimed when the name says so, and density then raises confidence.
+        # Getting this wrong is expensive in both directions -- ordinal-encoding a
+        # nominal column invents a false ranking, one-hot-encoding an ordinal one
+        # discards a real one -- so the conservative default is CATEGORICAL.
+        if hints["ordinal"]:
+            conf = 0.75 + (0.10 if small_dense else 0.0)
             return TypeInference(
                 SemanticType.ORDINAL,
                 confidence=min(conf, 0.90),
                 alternatives=(SemanticType.CATEGORICAL, SemanticType.NUMERIC),
                 reasons=(
-                    f"{n_unique} distinct consecutive integer levels",
-                    *(("name suggests an ordered scale",) if hints["ordinal"] else ()),
+                    "name suggests an ordered scale",
+                    *(
+                        (f"{n_unique} distinct consecutive integer levels",)
+                        if small_dense
+                        else ()
+                    ),
                 ),
             )
         conf = 0.55 + (0.15 if hints["categorical"] else 0.0)

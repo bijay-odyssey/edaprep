@@ -161,7 +161,6 @@ def detect_numeric_sentinels(
         finite = values[np.isfinite(values)]
         if finite.size == 0:
             continue
-        lo, hi = np.quantile(finite, [0.005, 0.995])
         per_value: Dict[str, int] = {}
         for candidate in wanted:
             count = int(np.count_nonzero(finite == candidate))
@@ -169,6 +168,14 @@ def detect_numeric_sentinels(
                 continue
             if count / finite.size < min_fraction:
                 continue
+            # The reference range must exclude the candidate itself.  A sentinel
+            # repeated often enough occupies the tail it is being compared against,
+            # so including it makes the column look as if -999 were part of its own
+            # normal range and the check silently never fires.
+            rest = finite[finite != candidate]
+            if rest.size < 2:
+                continue
+            lo, hi = np.quantile(rest, [0.005, 0.995])
             if lo <= candidate <= hi:
                 continue  # inside the bulk of the distribution: probably legitimate
             per_value[str(candidate)] = count
@@ -320,7 +327,10 @@ def detect_case_variants(
             or isinstance(series.dtype, (pd.StringDtype, pd.CategoricalDtype))
         ):
             continue
-        uniques = pd.Series(series.dropna().unique())
+        try:
+            uniques = pd.Series(series.dropna().unique())
+        except TypeError:
+            continue  # unhashable cell values; case folding is meaningless here
         if uniques.empty or len(uniques) > max_cardinality:
             continue
         as_str = uniques.astype(str)

@@ -170,24 +170,40 @@ def test_estimate_memory_total_matches_pandas() -> None:
     assert got["total"] == int(frame.memory_usage(index=True, deep=True).sum())
 
 
-def test_denormal_scale_is_more_accurate_than_pandas() -> None:
-    """At denormal scale pandas underflows to 0.0; the two-pass form does not.
+@pytest.mark.parametrize("a", [1.17549435e-38, 3.75689048e-26, 1e-9])
+def test_small_magnitude_skew_is_more_accurate_than_pandas(a: float) -> None:
+    """Below ~1e-14 pandas zeroes the moments; the scale-relative guard does not.
 
-    For ``[0, a, a, a]`` the exact skewness is -2 regardless of ``a``.  With
-    ``a = 1.17e-38`` the centred values are ~2.9e-39, whose squares underflow inside
-    pandas' accumulation, so ``Series.skew()`` returns 0.0.  This is documented rather
-    than "fixed": edaprep's answer is the correct one, so the property test below
-    excludes the regime instead of pinning us to pandas' underflow.
+    ``pandas.core.nanops`` applies ``_zero_out_fperr``, an *absolute* ``|m| < 1e-14``
+    cut-off, before computing skewness.  For ``[0, a, a, a]`` the exact skewness is -2
+    for every ``a``, but once ``a`` is small enough that ``m2`` falls under that
+    cut-off, ``Series.skew()`` returns 0.0.
+
+    edaprep's guard is relative to the column's own magnitude, so it fires only when
+    the spread really is rounding noise.  These cases are therefore a deliberate
+    *disagreement* with pandas in which edaprep is correct, and the property test
+    below excludes the regime rather than pinning us to pandas' behaviour.
     """
-    a = 1.17549435e-38
     frame = pd.DataFrame({"x": [0.0, a, a, a]})
     assert numeric_block_stats(frame)["x"].skew == pytest.approx(-2.0, rel=1e-9)
-    assert pd.Series([0.0, a, a, a]).skew() == 0.0
 
     scaled = pd.DataFrame({"x": [0.0, 1.0, 1.0, 1.0]})  # same shape, ordinary scale
     assert numeric_block_stats(scaled)["x"].skew == pytest.approx(
         pd.Series([0.0, 1.0, 1.0, 1.0]).skew(), rel=1e-12
     )
+
+
+def test_near_constant_at_large_magnitude_reads_as_constant() -> None:
+    """The other direction: rounding noise must not be reported as real skew.
+
+    Centring 25 copies of a value that the mean cannot represent exactly leaves ~1 ULP
+    of noise.  Dividing that noise by itself yields an arbitrary number near 1, which
+    is what an unguarded implementation reports.
+    """
+    frame = pd.DataFrame({"x": [38479.9277006] * 25})
+    stats = numeric_block_stats(frame)["x"]
+    assert stats.skew == 0.0
+    assert stats.variance == 0.0
 
 
 @settings(
@@ -212,8 +228,9 @@ def test_denormal_scale_is_more_accurate_than_pandas() -> None:
 def test_property_moments_agree_with_pandas(values: np.ndarray) -> None:
     """For any finite float column at ordinary scale, moments match pandas."""
     centred = values - values.mean()
-    # Exclude the underflow regime documented above, where pandas is the inaccurate one.
-    assume(np.all(np.isfinite(centred**4)) and float(np.mean(centred**2)) > 1e-250)
+    # Exclude the regime documented above, where pandas' absolute 1e-14 cut-off zeroes
+    # moments that are in fact well determined.  1e-13 keeps a safe margin above it.
+    assume(np.all(np.isfinite(centred**4)) and float(np.mean(centred**2)) > 1e-13)
 
     series = pd.Series(values, name="x")
     stats = numeric_block_stats(series.to_frame())["x"]
