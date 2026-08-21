@@ -11,7 +11,7 @@ with the same tests, applied to the right pairings, plus the association measure
 already on the profile so that numeric and categorical features are comparable on one
 scale.
 
-One correction: notebook practice runs the tests on every categorical column and sorts by
+One correction: it is common to run the tests on every categorical column and sort by
 p-value, which with 400 columns guarantees small p-values by chance alone.  A
 Benjamini-Hochberg adjusted q-value is reported alongside, so the ranking survives
 being looked at.

@@ -1,6 +1,6 @@
 """Calendar feature expansion.
 
-Notebook practice writes this block verbatim in three notebooks::
+This block appears verbatim in notebook after notebook::
 
     df['dayofweek']  = df[date_col].dt.dayofweek
     df['month']      = df[date_col].dt.month

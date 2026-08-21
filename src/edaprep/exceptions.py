@@ -1,6 +1,6 @@
 """Typed exceptions with actionable messages.
 
-Notebook practice suppressed warnings globally (``warnings.filterwarnings("ignore")``
+Notebooks routinely suppress warnings globally (``warnings.filterwarnings("ignore")``
 in 10 notebooks), which hid a real ``SettingWithCopyWarning``.  ``edaprep`` never
 suppresses warnings and never raises a bare ``ValueError``: every raise site states what
 was attempted, on which column, why it failed, and what to do instead.

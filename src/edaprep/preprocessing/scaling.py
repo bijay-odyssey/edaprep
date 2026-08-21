@@ -1,8 +1,8 @@
 """Numeric scaling.
 
 Deliberately conservative.  Not every model needs scaling,
-and notebook practice scales unconditionally -- including for tree ensembles, where it is pure
-cost.  ``strategy="auto"`` therefore consults ``model_family``: tree families get no
+and it is common to scale unconditionally -- including for tree ensembles, where it is
+pure cost.  ``strategy="auto"`` therefore consults ``model_family``: tree families get no
 scaling at all, and with no family declared the default is standard scaling only
 because that is the least surprising choice, recorded as such in the plan.
 
@@ -32,8 +32,8 @@ _STRATEGIES = ("standard", "minmax", "robust", "maxabs", "none")
 def resolve_scaling(model_family: Optional[ModelFamily]) -> str:
     """The default scaling for a model family.
 
-    Mined from notebook practice, where two notebooks maintain parallel tree and linear
-    branches and only the linear branch scales.
+    Derived from the common practice of maintaining parallel tree and linear branches,
+    where only the linear branch scales.
     """
     if model_family is None:
         return "standard"

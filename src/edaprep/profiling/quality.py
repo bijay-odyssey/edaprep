@@ -1,7 +1,6 @@
 """Data-quality detection: sentinels, co-missingness, and structured issue records.
 
-Two of these checks are lifted straight from notebook practice, where they were
-written once, by hand, for one dataset:
+Two of these checks are the kind normally written once, by hand, for a single dataset:
 
 * the ``(df == '?').sum()`` scan in ``a census-income notebook`` becomes
   :func:`detect_sentinels`, generalised to a configurable vocabulary;

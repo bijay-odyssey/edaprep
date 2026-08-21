@@ -40,7 +40,7 @@ class MissingValueHandler(Transformer, ColumnTransformerMixin):
     ----------
     strategy :
         ``"auto"`` picks per column from the semantic type: median for numeric
-        (robust to the skew notebook practice datasets are full of), mode for categorical
+        (robust to the skew real tabular data is full of), mode for categorical
         and binary, and an explicit ``"missing"`` category for high-cardinality
         categoricals where the mode is not representative.  Any other value pins
         every column to that strategy.

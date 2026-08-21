@@ -1,7 +1,8 @@
 """Duplicate row handling.
 
-Deliberately conservative.  Duplicate rows are not always errors.  In transactional data two identical rows are two identical events, and
-deduplicating them destroys information and distorts class balance.
+Deliberately conservative.  Duplicate rows are not always errors: in transactional
+data two identical rows are two identical events, and deduplicating them destroys
+information and distorts class balance.
 
 So the default is ``"report"``, and removal is a fit-time-only operation: dropping rows
 inside ``transform`` would change how many predictions the caller gets back for a test

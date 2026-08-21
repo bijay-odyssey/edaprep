@@ -3,7 +3,7 @@
 Design notes
 ------------
 Every number that influences a decision lives in :class:`Thresholds`, in one place, with
-a comment saying where it came from.  Notebook practice is full of bare literals
+a comment saying where it came from.  Notebook preprocessing is full of bare literals
 (``> 0.9``, ``abs(skew) > 1``, ``1.5 * IQR``, ``> 3``) whose provenance is lost; naming
 them is what makes the planner's decisions auditable.
 
@@ -98,9 +98,9 @@ def _validate_range(name: str, value: float, low: float, high: float) -> float:
 class Thresholds:
     """Every decision threshold in the library, named and sourced.
 
-    Thresholds marked *(notebook practice)* are the values the reference notebooks used; keeping
-    the same numbers means the planner reproduces decisions the author already trusts,
-    while making them overridable.
+    Thresholds marked *(conventional)* are the values practice has settled on.  Keeping
+    the same numbers means the planner reproduces familiar decisions; naming them means
+    they can be argued with.
     """
 
     # --- semantic type inference -------------------------------------------------
@@ -133,30 +133,31 @@ class Thresholds:
     missing_impute_threshold: float = 0.60
 
     # --- outliers -----------------------------------------------------------------
-    #: IQR fence multiplier for symmetric columns.  1.5 is Tukey's original (notebook practice).
+    #: IQR fence multiplier for symmetric columns.  1.5 is Tukey's original.
     iqr_k: float = 1.5
-    #: IQR fence multiplier for skewed columns; notebook practice widened to 3.0 there.
+    #: IQR fence multiplier for skewed columns; 3.0 is the usual widening.
     iqr_k_skewed: float = 3.0
-    #: |z| threshold (notebook practice).
+    #: |z| threshold; 3.0 is conventional.
     zscore_threshold: float = 3.0
     #: Modified (MAD-based) z threshold.  Iglewicz & Hoaglin's recommendation.
     modified_zscore_threshold: float = 3.5
-    #: Percentile fence used by the "percentile"/"winsorize" methods (notebook practice used 1/99).
+    #: Percentile fence for the "percentile"/"winsorize" methods; 1/99 is conventional.
     percentile_bounds: tuple = (0.01, 0.99)
     #: Only act automatically on outliers below this contamination fraction; above it,
     #: the values are probably the distribution, not errors.
     outlier_max_action_fraction: float = 0.10
 
     # --- skewness / distribution --------------------------------------------------
-    #: |skew| below this is "symmetric"; standard scaling, no transform (notebook practice).
+    #: |skew| below this is "symmetric": standard scaling, no transform.
     skew_moderate: float = 1.0
-    #: |skew| at or above this is "heavy"; power transform (notebook practice).
+    #: |skew| at or above this is "heavy": power transform.
     skew_heavy: float = 5.0
 
     # --- categorical --------------------------------------------------------------
     #: Categories with frequency below this are grouped into a rare bucket.
     rare_category_threshold: float = 0.01
-    #: Above this cardinality, one-hot encoding is refused (notebook practice one-hot'd blindly).
+    #: Above this cardinality, one-hot encoding is refused: unbounded expansion is
+    #: the usual mistake.
     high_cardinality_threshold: int = 50
     #: Hard ceiling: above this, only frequency/target encoding or dropping is offered.
     extreme_cardinality_threshold: int = 1000
@@ -164,7 +165,7 @@ class Thresholds:
     max_onehot_columns: int = 200
 
     # --- feature selection --------------------------------------------------------
-    #: Absolute correlation above which two features are considered redundant (notebook practice).
+    #: Absolute correlation above which two features are considered redundant.
     correlation_threshold: float = 0.95
     #: Variance below which a numeric feature is dropped.
     variance_threshold: float = 0.0

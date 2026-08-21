@@ -1,6 +1,6 @@
 """Shared fixtures.
 
-``messy_frame`` deliberately reproduces every pathology found in notebook practice:
+``messy_frame`` deliberately reproduces every pathology this library exists to catch:
 sentinel strings, an ID column, a constant, a near-constant, a duplicated column,
 co-missing pairs, a heavily skewed column, a zero-heavy column, a high-cardinality
 category, an integer-coded category, whitespace variants, and a leaky column.

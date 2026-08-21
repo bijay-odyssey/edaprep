@@ -56,8 +56,8 @@ class SemanticType(_StrEnum):
     """What a column *means*, as opposed to how it is stored.
 
     docs/design-rationale.md identifies conflating these two as the single most common defect
-    in notebook practice: ``select_dtypes(include=['int64'])`` puts a zip code and a
-    temperature in the same bucket.
+    in notebook preprocessing: ``select_dtypes(include=['int64'])`` puts a zip code
+    and a temperature in the same bucket.
     """
 
     NUMERIC = "numeric"
@@ -138,8 +138,8 @@ _STAGE_ORDER = {
 class ModelFamily(_StrEnum):
     """The family of model the output is destined for.
 
-    Mined from notebook practice, where two independent notebooks maintain parallel
-    preprocessing branches for tree-based and linear models.  It is an *input to
+    Reflects the common practice of maintaining parallel preprocessing branches for
+    tree-based and linear models.  It is an *input to
     planning* only; ``edaprep`` never trains anything.
     """
 

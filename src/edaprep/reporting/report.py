@@ -12,7 +12,7 @@ particular frame.  Collapsing the two would hide that.
 
 Reproducibility metadata (library version, config, random seed, learned parameters) is
 recorded so that a persisted output can be traced back to the process that made it --
-the thing ``processed_train.csv`` in notebook practice cannot do.
+the thing a bare processed CSV cannot do.
 """
 
 from __future__ import annotations
@@ -98,7 +98,7 @@ class Report:
     def leakage(self) -> Dict[str, Any]:
         """What was learned from the target, and how it was protected.
 
-        The audit notebook practice needed and did not have.
+        The audit hand-written pipelines need and rarely have.
         """
         target_users = [
             e for e in self.entries if "target_encode" in e.action

@@ -1,6 +1,6 @@
 """Semantic type inference.
 
-The cases here are the ones notebook practice gets wrong: integer-coded categories,
+The cases here are the ones notebook code gets wrong: integer-coded categories,
 numeric IDs, dates stored as strings, and boolean-ish text.
 """
 
@@ -33,7 +33,7 @@ def test_continuous_float_is_numeric() -> None:
 
 
 def test_integer_coded_category_is_not_numeric() -> None:
-    """The headline correction: 39 notebook practice occurrences route this to StandardScaler."""
+    """The headline correction: the dtype split sends this straight to StandardScaler."""
     gen = np.random.default_rng(1)
     assert infer(gen.integers(0, 5, N), "payment_type") is SemanticType.CATEGORICAL
 

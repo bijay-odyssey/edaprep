@@ -125,8 +125,8 @@ def _quiet_reductions():
     """Silence the NumPy/pandas warnings that degenerate reductions legitimately raise.
 
     Scoped to the expressions that can raise them.  ``edaprep`` never installs a global
-    warning filter: notebook practice's module-level ``filterwarnings("ignore")`` is
-    exactly what hid a real bug.
+    warning filter: a module-level ``filterwarnings("ignore")`` is exactly the kind of
+    thing that hides a real bug.
     """
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message="Mean of empty slice")

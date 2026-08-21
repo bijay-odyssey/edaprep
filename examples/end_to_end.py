@@ -24,7 +24,7 @@ import edaprep
 
 
 def make_messy_dataset(n: int = 6000, seed: int = 42) -> pd.DataFrame:
-    """A customer-churn frame containing every defect notebook practice exhibits."""
+    """A customer-churn frame containing every defect this library exists to catch."""
     gen = np.random.default_rng(seed)
 
     tenure = gen.integers(0, 96, n)
@@ -83,7 +83,7 @@ def make_messy_dataset(n: int = 6000, seed: int = 42) -> pd.DataFrame:
     )
 
     # Missing values, some of them correlated: two columns that go missing together,
-    # which notebook practice discovered by hand in a census-income notebook.
+    # the kind of pattern usually noticed by hand, one dataset at a time.
     shared_gap = gen.random(n) < 0.12
     frame.loc[shared_gap, "monthly_spend"] = np.nan
     frame.loc[shared_gap, "account_balance"] = np.nan
@@ -171,7 +171,7 @@ def main() -> None:
     cut = int(len(shuffled) * 0.8)
     train_df, test_df = shuffled.iloc[:cut].copy(), shuffled.iloc[cut:].copy()
     print(f"train: {train_df.shape[0]:,} rows    test: {test_df.shape[0]:,} rows")
-    print("\nNotebook practice scaled the full frame and split afterwards. Splitting")
+    print("\nScaling the full frame and splitting afterwards is the classic mistake.")
     print("first is the whole discipline; edaprep makes the rest automatic.")
 
     # ------------------------------------------------------------------ 5. plan

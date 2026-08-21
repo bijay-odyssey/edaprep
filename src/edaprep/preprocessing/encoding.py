@@ -1,6 +1,6 @@
 """Categorical encoding.
 
-Two corrections to notebook practice (docs/design-rationale.md 6.3 and section 13 of the design goal):
+Two corrections to common practice (docs/design-rationale.md section 5.3):
 
 * **Target encoding is cross-fitted.**  ``category_encoders.TargetEncoder`` inside a
   ``ColumnTransformer`` is train/test-safe but not *row*-safe: a training row's encoded
@@ -9,8 +9,8 @@ Two corrections to notebook practice (docs/design-rationale.md 6.3 and section 1
   computes the training output from out-of-fold statistics while storing the full-train
   mapping for ``transform``.
 * **One-hot encoding is refused, not attempted, on high-cardinality columns.**  The
-  notebook practice one-hot encodes whatever arrives; a column with 300 levels silently becomes
-  300 columns, and one with 300,000 exhausts memory.
+  the usual code one-hot encodes whatever arrives; a column with 300 levels silently
+  becomes 300 columns, and one with 300,000 exhausts memory.
 
 Unseen categories at transform time are handled explicitly rather than crashing or
 producing NaN by accident, since a category present only in the test set is the normal
@@ -53,8 +53,8 @@ def resolve_encoding(
 ) -> str:
     """Choose an encoding from cardinality and the consuming model family.
 
-    Mined from notebook practice (docs/design-rationale.md, axis 2), extended with the cardinality
-    ceilings it lacked.
+    See docs/design-rationale.md, axis 2; extended with the cardinality ceilings the
+    hand-written version lacks.
     """
     if cardinality <= 2:
         return "ordinal"  # binary: one column either way, no false ordering possible

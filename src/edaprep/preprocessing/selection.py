@@ -306,17 +306,17 @@ class CorrelationFilter(_Dropper):
     2. else lowest missing fraction;
     3. else first in input order.
 
-    Deterministic and order-independent, unlike the greedy version in notebook practice.
+    Deterministic and order-independent, unlike the greedy version usually written.
 
     Parameters
     ----------
     method :
         ``"pearson"`` or ``"spearman"``.  Spearman is the safer default on skewed data
-        -- it is what notebook practice used on the fraud dataset -- but costs a rank
+        -- the usual choice for wide, skewed data -- but costs a rank
         transform.
     sample_size :
-        Compute the correlation matrix on at most this many rows.  Notebook practice sampled
-        10,000 rows for exactly this reason.
+        Compute the correlation matrix on at most this many rows; sampling 10,000 is
+        conventional for exactly this reason.
     """
 
     def __init__(

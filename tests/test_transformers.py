@@ -173,7 +173,7 @@ def test_detector_never_flags_missing_values() -> None:
 
 
 def test_detector_with_nan_still_finds_the_outlier() -> None:
-    """The sibling notebook's bug: zscore(col) with any NaN returned all-NaN."""
+    """The silent-failure variant: zscore(col) with any NaN returns all-NaN."""
     gen = np.random.default_rng(2)
     values = gen.normal(0, 1, 200)
     values[::10] = np.nan
@@ -704,7 +704,7 @@ def test_correlation_filter_is_order_independent() -> None:
 
 
 def test_correlation_filter_keeps_chain_information() -> None:
-    """a~b and b~c with a,c independent: notebook practice drops both b and c."""
+    """a~b and b~c with a,c independent: the greedy version drops both b and c."""
     gen = np.random.default_rng(17)
     a = gen.normal(size=800)
     c = gen.normal(size=800)

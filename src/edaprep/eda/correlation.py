@@ -1,11 +1,11 @@
 """Correlation and multicollinearity.
 
-Notebook practice computes ``df[num_cols].sample(10_000).corr('spearman')`` and plots a
+The usual approach is ``df[num_cols].sample(10_000).corr('spearman')`` plus a
 heatmap.  Two things are added:
 
 * the sampling is principled and *recorded*, rather than an ad-hoc ``.sample()`` whose
   presence a reader of the notebook has to notice;
-* VIF is reimplemented in NumPy.  Notebook practice calls ``statsmodels``'
+* VIF is reimplemented in NumPy.  The usual approach calls ``statsmodels``'
   ``variance_inflation_factor`` in a loop, which refits a regression per feature and is
   O(p) full least-squares solves; inverting the correlation matrix once gives the same
   numbers in one step, and drops the statsmodels dependency entirely.

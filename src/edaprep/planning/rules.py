@@ -10,7 +10,7 @@ conflict-resolution policy rather than an emergent property of statement order.
 
 Provenance
 ----------
-The three routing axes below are mined from notebook practice (see
+The three routing axes below are distilled from common practice (see
 ``docs/design-rationale.md``, section 5), where they exist as hand-written branches
 inside a ``make_preprocessor`` closure.  Formalising them means the thresholds are
 named, the reasoning is printed, and a user can override any of it per column.
@@ -251,7 +251,7 @@ def _rule_missing_indicator(cp: ColumnProfile, ctx: RuleContext) -> Optional[Dec
 
 
 # ---------------------------------------------------------------------------------
-# OUTLIERS  (notebook practice axis 3: choose the method by skewness)
+# OUTLIERS  (axis 3: choose the method by skewness)
 # ---------------------------------------------------------------------------------
 
 
@@ -401,7 +401,7 @@ def _rule_impute(cp: ColumnProfile, ctx: RuleContext) -> Optional[Decision]:
 
 
 # ---------------------------------------------------------------------------------
-# TRANSFORM  (notebook practice axis 1: route numeric columns by distribution shape)
+# TRANSFORM  (axis 1: route numeric columns by distribution shape)
 # ---------------------------------------------------------------------------------
 
 
@@ -504,7 +504,7 @@ def _rule_transform(cp: ColumnProfile, ctx: RuleContext) -> Optional[Decision]:
 
 
 # ---------------------------------------------------------------------------------
-# RARE_CATEGORY / ENCODE  (notebook practice axis 2: route by consuming model family)
+# RARE_CATEGORY / ENCODE  (axis 2: route by consuming model family)
 # ---------------------------------------------------------------------------------
 
 
@@ -728,7 +728,7 @@ def _rule_scale(cp: ColumnProfile, ctx: RuleContext) -> Optional[Decision]:
 
     # Robust scaling for skewed columns: standard scaling divides by a standard
     # deviation that the tail dominates, leaving the bulk of the data compressed into a
-    # narrow band.  Notebook practice reached the same conclusion by hand.
+    # narrow band.  Careful hand-written pipelines reach the same conclusion.
     if (
         family is not ModelFamily.NEURAL
         and cp.numeric is not None
@@ -799,19 +799,19 @@ def default_rules() -> RuleSet:
                  description="Flag missingness before imputation destroys it"),
             # OUTLIERS
             Rule("outlier_method_by_skew", Stage.OUTLIERS, _rule_outliers, priority=50,
-                 description="Choose the fence from measured skewness (notebook practice axis 3)"),
+                 description="Choose the fence from measured skewness (axis 3)"),
             # MISSING
             Rule("impute_by_type", Stage.MISSING, _rule_impute, priority=50,
                  description="Median for numeric, mode or explicit category otherwise"),
             # TRANSFORM
             Rule("transform_by_skew", Stage.TRANSFORM, _rule_transform, priority=50,
-                 description="Skew tiering with support validation (notebook practice axis 1)"),
+                 description="Skew tiering with support validation (axis 1)"),
             # RARE_CATEGORY
             Rule("group_rare", Stage.RARE_CATEGORY, _rule_rare_category, priority=50,
                  description="Collapse levels too rare to estimate"),
             # ENCODE
             Rule("encode_by_cardinality_and_family", Stage.ENCODE, _rule_encode, priority=50,
-                 description="Route by cardinality and model family (notebook practice axis 2)"),
+                 description="Route by cardinality and model family (axis 2)"),
             # SCALE
             Rule("scale_by_family", Stage.SCALE, _rule_scale, priority=50,
                  description="Scale only when the model family needs it"),

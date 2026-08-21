@@ -54,7 +54,7 @@ profile.to_dict()                # JSON-safe: NaN and inf become null
 ### 2.2 Why semantic types matter
 
 A column's dtype says how it is stored; its semantic type says what it means. Confusing
-the two is the single most common defect in notebook practice.
+the two is the single most common defect in notebook preprocessing.
 
 ```python
 df = pd.DataFrame({
@@ -200,8 +200,8 @@ print(plan.summary())
 
 ### 4.2 Why `model_family` matters
 
-Two notebooks in notebook practice maintain parallel preprocessing branches for tree
-and linear models. That is now one argument.
+Sophisticated hand-written pipelines end up maintaining parallel preprocessing
+branches for tree and linear models. That is now one argument.
 
 | | `"tree"` | `"linear"` / `"distance"` | `"neural"` | `None` |
 |---|---|---|---|---|

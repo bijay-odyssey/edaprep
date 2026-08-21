@@ -1,14 +1,14 @@
 """Outlier detection and handling.
 
-Notebook practice contains 12 independent rewrites of the IQR fence and 6 of the z-score
-fence, plus two bugs worth restating (docs/design-rationale.md 6.2):
+The IQR fence and the z-score fence get rewritten in project after project, and two
+bugs recur often enough to be worth restating (docs/design-rationale.md section 5.2):
 
-* ``zscore(X_train[col].dropna())`` produces a positional array over the *non-null*
-  subset which is then used as a boolean mask against the *full* frame, flagging the
-  wrong rows whenever the column has any NaN;
-* the sibling notebook calls ``zscore(X_train[col])`` without ``dropna()``, which
-  returns all-NaN for a column with a single missing value, so the mask is all-False
-  and no outlier is ever found -- silently.
+* ``zscore(col.dropna())`` produces a positional array over the *non-null* subset which
+  is then used as a boolean mask against the *full* frame, flagging the wrong rows
+  whenever the column has any NaN;
+* the variant without ``dropna()`` is worse: ``zscore`` returns all-NaN for a column
+  with a single missing value, so the mask is all-False and no outlier is ever found --
+  silently.
 
 Every detector here returns a boolean ``Series`` aligned to the input index, with
 missing values never flagged.  That single choice removes the whole class of bug.
@@ -102,9 +102,9 @@ class OutlierDetector(ABC):
 class IQRDetector(OutlierDetector):
     """Tukey's fence: ``[Q1 - k*IQR, Q3 + k*IQR]``.
 
-    ``k=1.5`` is Tukey's original and the usual usual choice; notebook practice widens to
-    ``k=3.0`` for skewed columns, which the planner reproduces as a named decision
-    rather than an unexplained literal.
+    ``k=1.5`` is Tukey's original and the usual choice; practice widens to ``k=3.0``
+    for skewed columns, which the planner reproduces as a named decision rather than an
+    unexplained literal.
     """
 
     name = "iqr"
@@ -135,7 +135,7 @@ class IQRDetector(OutlierDetector):
 class ZScoreDetector(OutlierDetector):
     """``[mean - t*sd, mean + t*sd]``.
 
-    ``ddof`` defaults to 0 (population), matching ``scipy.stats.zscore``.  Notebook practice
+    ``ddof`` defaults to 0 (population), matching ``scipy.stats.zscore``.  Notebook code
     mixes ``scipy.stats.zscore`` (ddof=0) with ``Series.std()`` (ddof=1) and treats the
     results as the same statistic; naming the parameter makes the difference visible.
 
@@ -175,8 +175,8 @@ class ModifiedZScoreDetector(OutlierDetector):
 
     Robust: the median and MAD are not dragged by the extreme values being detected,
     unlike the mean and standard deviation.  ``threshold=3.5`` is Iglewicz and
-    Hoaglin's recommendation.  This is what the usual skewed columns needed and
-    never got.
+    Hoaglin's recommendation.  This is what skewed columns need, and what the plain
+    z-score fence is usually reached for instead.
 
     When the MAD is zero -- more than half the column shares one value, common in
     zero-heavy columns -- the scale is undefined and the detector falls back to the
@@ -281,7 +281,7 @@ def detect_outliers(
     """Convenience: a boolean Series flagging outliers in ``series``.
 
     Aligned to the input index; missing values are never flagged.  This is the
-    one-liner notebook practice rewrote twelve times.
+    one-liner that gets rewritten in every project.
 
     >>> detect_outliers(pd.Series([1, 2, 3, 100]), method="iqr").sum()
     1
@@ -303,7 +303,7 @@ class OutlierHandler(Transformer, ColumnTransformerMixin):
         ``"auto"`` follows the usual own rule (docs/design-rationale.md, axis 3): the IQR
         fence with a widened ``k`` for skewed columns, the z-score fence for
         symmetric ones -- except that the skewed branch uses the *modified* z-score
-        where the column is heavily skewed, which is the robust statistic notebook practice
+        where the column is heavily skewed, which is the robust statistic the IQR fence
         reached for the IQR to approximate.
     strategy :
         What to do with a detected outlier.
@@ -312,7 +312,8 @@ class OutlierHandler(Transformer, ColumnTransformerMixin):
         ``"clip"``     clamp to the fence.
         ``"winsorize"`` clamp to the percentile fence regardless of ``method``.
         ``"impute"``   set to NaN, for a later imputation step to fill.  This is the
-                       notebook practice's accidental behaviour (docs/design-rationale.md 6.6), named.
+                       behaviour that usually emerges by accident
+                       (docs/design-rationale.md section 5.6), named.
         ``"remove"``   drop the rows.  Fit-time only; see below.
         ``"ignore"``   do nothing and do not even count.
     max_action_fraction :

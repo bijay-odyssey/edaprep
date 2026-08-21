@@ -152,7 +152,7 @@ def test_imputer_uses_train_median_only(split_frame) -> None:
 
 
 def test_outlier_bounds_are_fixed_at_fit(split_frame) -> None:
-    """Notebook practice fitted bounds on train and never applied them to test at all."""
+    """Bounds are commonly fitted on train and then never applied to test at all."""
     train, test = split_frame
     context = _context(train)
     handler = OutlierHandler(["num"], method="iqr", strategy="clip").fit(
@@ -280,8 +280,8 @@ def test_target_never_appears_in_transform_output(split_frame) -> None:
 def test_target_is_not_transformed(split_frame) -> None:
     """edaprep never transforms a target column, even a skewed one.
 
-    Notebook practice does ``df['price'] = np.log1p(df['price'])`` in place, which is
-    easy to forget to invert at prediction time.
+    Writing ``df['price'] = np.log1p(df['price'])`` in place is easy to forget to
+    invert at prediction time.
     """
     train, _ = split_frame
     train = train.rename(columns={"skewed": "y2"}).drop(columns=["y"])
@@ -313,3 +313,73 @@ def test_leaky_column_is_reported_not_silently_dropped() -> None:
     assert "leak" in pipe.transform(frame).columns
     assert any("LEAKAGE SUSPECTED" in note for note in pipe.plan_.notes)
     assert "leak" in pipe.report_.leakage["columns_suspected_of_leakage"]
+
+
+# --- the structural check ------------------------------------------------------------
+
+
+def test_transform_methods_compute_no_statistics() -> None:
+    """Parse every ``_transform`` body and refuse aggregation calls.
+
+    The behavioural test above (``test_transform_output_is_independent_of_batching``)
+    catches any transform-time statistic empirically.  This one catches it *structurally*
+    and names the offending line, which is a far better error message when someone adds
+    a transformer years from now.
+
+    The allow-list is deliberately tiny.  Every entry is a case where the "aggregation"
+    is over fitted state or over a per-row mask, not over the incoming data.
+    """
+    import ast
+    import importlib
+    import inspect
+    import pkgutil
+    import textwrap
+
+    import edaprep.preprocessing as preprocessing_pkg
+
+    # Names that aggregate over data.  A call to any of these inside _transform means
+    # the output for one row depends on the other rows in the same batch.
+    forbidden = {
+        "mean", "median", "quantile", "std", "var", "mode", "value_counts",
+        "nunique", "corr", "cov", "skew", "kurt", "factorize", "unique", "rank",
+    }
+    # (transformer, attribute) pairs that are aggregations over something other than
+    # the incoming data, with the reason recorded.
+    allowed = {
+        # counts how many values were affected, for the journal; the count does not
+        # feed back into the output
+        ("MissingValueHandler", "sum"),
+        # groups by a per-row mask to apply already-fitted bounds
+        ("RareCategoryGrouper", "sum"),
+        # factorizes only to compare against fitted category codes, never to derive them
+        ("OneHotEncoder", "factorize"),
+    }
+
+    offences = []
+    for module_info in pkgutil.iter_modules(preprocessing_pkg.__path__):
+        module = importlib.import_module(f"edaprep.preprocessing.{module_info.name}")
+        for name, obj in vars(module).items():
+            if not (isinstance(obj, type) and hasattr(obj, "_transform")):
+                continue
+            if obj.__module__ != module.__name__:
+                continue
+            try:
+                source = inspect.getsource(obj._transform)
+            except (OSError, TypeError):  # pragma: no cover - source always available
+                continue
+            tree = ast.parse(textwrap.dedent(source))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                attribute = None
+                if isinstance(node.func, ast.Attribute):
+                    attribute = node.func.attr
+                elif isinstance(node.func, ast.Name):
+                    attribute = node.func.id
+                if attribute in forbidden and (name, attribute) not in allowed:
+                    offences.append(f"{name}._transform calls .{attribute}()")
+
+    assert not offences, (
+        "transform() must be a pure function of fitted state, but these compute a "
+        "statistic over their input:\n  " + "\n  ".join(sorted(set(offences)))
+    )

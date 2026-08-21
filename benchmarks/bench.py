@@ -108,7 +108,7 @@ def measure(fn: Callable[[], object], repeat: int = 3) -> tuple:
 
 
 def make_frame(rows: int, seed: int = 0) -> pd.DataFrame:
-    """A frame with the shape of notebook practice's datasets."""
+    """A frame with the shape of a typical tabular ML dataset."""
     gen = np.random.default_rng(seed)
     return pd.DataFrame(
         {
@@ -159,8 +159,8 @@ def bench_profiling(rows: int, repeat: int) -> List[Result]:
     frame = make_frame(rows)
 
     seconds, peak = measure(lambda: profile(frame, target="target"), repeat)
-    # The nearest hand-written equivalent from notebook practice: the statistics its EDA
-    # notebooks actually compute, column by column.
+    # The nearest hand-written equivalent: the statistics an EDA notebook actually
+    # computes, column by column.
     def baseline() -> Dict[str, object]:
         out: Dict[str, object] = {
             "shape": frame.shape,

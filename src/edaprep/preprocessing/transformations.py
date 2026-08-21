@@ -1,7 +1,7 @@
 """Distribution transformations for skewed numeric columns.
 
-Notebook practice applies ``np.log1p`` by eye and, in one place, transforms the *target* on
-the full frame before splitting.  Here the transform is chosen from measured skewness,
+``np.log1p`` is usually applied by eye, and the *target* often transformed on the full
+frame before splitting.  Here the transform is chosen from measured skewness,
 validated against the column's actual support, and refused with an explanation rather
 than producing silent NaN or -inf.
 
@@ -276,7 +276,7 @@ class DistributionTransformer(Transformer, ColumnTransformerMixin):
         if method in ("log", "log1p", "sqrt", "boxcox"):
             # Values outside the transform's domain can appear at transform time even
             # though the training column was clean.  Producing NaN silently is what the
-            # notebook practice does; here the count is recorded so it is visible in the report.
+            # usually happens; here the count is recorded so it is visible in the report.
             domain = _domain_mask(method, values) & finite
             n_bad = int(np.count_nonzero(finite & ~domain))
             if n_bad:

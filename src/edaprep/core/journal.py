@@ -4,8 +4,8 @@ The plan says what was *decided*; the journal says what was *done*, with measure
 counts.  Keeping them separate matters because they can disagree -- a plan may decide
 to clip ``income`` and then find nothing above the fence in a particular transform.
 
-Notebook practice persisted ``processed_train.csv`` with no record of how it was
-produced.  This module is the fix.
+A processed CSV persisted with no record of how it was produced is the norm.  This
+module is the fix.
 """
 
 from __future__ import annotations

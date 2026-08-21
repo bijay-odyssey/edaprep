@@ -254,7 +254,7 @@ class ColumnTransformerMixin:
     The output frame is assembled from the input's column blocks with only the touched
     columns replaced.  Untouched columns are passed through by reference, so a pipeline
     that touches 5 of 400 columns allocates 5 columns rather than copying the frame --
-    the ``df.copy()`` habit that triples peak memory on wide frames in notebook practice.
+    the ``df.copy()`` habit that triples peak memory on wide frames.
     """
 
     @staticmethod

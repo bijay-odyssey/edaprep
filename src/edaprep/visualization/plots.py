@@ -75,9 +75,9 @@ def missing_matrix(
 ) -> "Axes":
     """Nullity matrix: one stripe per row, dark where a value is present.
 
-    The ``missingno.matrix`` plot notebook practice uses in eight notebooks.  Large frames are
-    subsampled -- the plot has a fixed pixel budget, so drawing 590,000 rows renders the
-    same picture far more slowly.
+    The familiar ``missingno.matrix`` plot.  Large frames are subsampled: the plot has
+    a fixed pixel budget, so drawing 500,000 rows renders the same picture far more
+    slowly.
     """
     frame = data
     if len(frame) > max_rows:

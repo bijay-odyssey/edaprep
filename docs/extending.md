@@ -208,7 +208,7 @@ restored = edaprep.Plan.from_dict(json.load(open("plan.json")))
 ```
 
 Storing the plan next to a trained model records exactly how its inputs were built —
-the thing `processed_train.csv` in notebook practice could not do.
+the thing a bare processed CSV cannot do.
 
 ---
 
@@ -220,9 +220,9 @@ only implementation today.
 
 The protocol is deliberately small, and only hot paths are written against it; cold
 paths use pandas directly, because pretending otherwise would be abstraction for its own
-sake. It exists because the frames of interest in notebook practice reach
-590,000 × 434, and an Arrow-backed implementation is a foreseeable need — not because
-backend-swapping is a goal in itself.
+sake. It exists because tabular ML frames routinely reach 500,000 × 400, and an
+Arrow-backed implementation is a foreseeable need — not because backend-swapping is a
+goal in itself.
 
 ```python
 from edaprep.backends.base import Backend

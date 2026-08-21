@@ -1,8 +1,8 @@
 """Semantic column-type inference.
 
 The single most consequential correction this library makes to the reference workflow.
-39 occurrences of ``select_dtypes(include=['int64','float64'])`` in notebook practice route a
-zip code and a temperature into the same preprocessing branch.
+The ubiquitous ``select_dtypes(include=['int64','float64'])`` routes a zip code and a
+temperature into the same preprocessing branch.
 
 The inference is a cascade of falsifiable checks that returns a *confidence* and a list
 of runner-up types rather than a bare label, so that "when uncertain, expose the
@@ -102,7 +102,7 @@ def is_integral(series: pd.Series, sample: Optional[np.ndarray] = None) -> bool:
     """True when every finite value is a whole number.
 
     ``float`` columns holding ``1.0, 2.0, 3.0`` are integral in this sense; that is
-    exactly the encoded-category case notebook practice mishandles.
+    exactly the encoded-category case that gets mishandled.
     """
     if pd.api.types.is_integer_dtype(series.dtype):
         return True

@@ -9,9 +9,9 @@ there.
 ## 1. The one idea
 
 Most EDA/preprocessing libraries are *function libraries*: you call `impute()`, then
-`encode()`, then `scale()`. docs/design-rationale.md shows that the author already has those
-functions, written twelve times each. What the author does **not** have, and what is
-actually hard, is the layer above:
+`encode()`, then `scale()`. But those functions are the easy part — most practitioners
+have already written each of them several times. What is actually hard is the layer
+above:
 
 > Given this dataset, and given what I intend to do with it, **which** operations apply,
 > **in what order**, **with what parameters**, and **why**?
@@ -87,13 +87,13 @@ src/edaprep/
 │   ├── journal.py          append-only record of everything that happened
 │   └── pipeline.py         Pipeline (explicit) and AutoPipeline (automatic)
 ├── profiling/
-│   ├── statistics.py       single-pass numeric/categorical stat kernels
+│   ├── statistics.py       statistic kernels (delegating; see performance.md)
 │   ├── column_types.py     semantic type inference
 │   ├── quality.py          sentinels, co-missingness, quality issues
 │   └── profiler.py         DatasetProfile, ColumnProfile, profile()
 ├── planning/
 │   ├── decisions.py        Decision / PlannedStep / Plan value types
-│   ├── rules.py            the rule set (mined from notebook practice)
+│   ├── rules.py            the rule set (see design-rationale.md)
 │   └── planner.py          Planner: profile + config -> Plan
 ├── preprocessing/
 │   ├── missing.py          MissingValueHandler, MissingIndicator
@@ -114,9 +114,8 @@ src/edaprep/
 │   ├── outliers.py         EDA-side outlier summary
 │   └── target.py           target relationship, imbalance, leakage suspicion
 ├── reporting/
-│   ├── report.py           Report value type + summary renderer
-│   ├── json_io.py          to_json / from_json, numpy-safe
-│   └── html.py             optional HTML renderer (no external deps)
+│   ├── report.py           Report value type, summary + JSON renderers
+│   └── html.py             self-contained HTML renderer (no external assets)
 ├── visualization/
 │   └── plots.py            optional matplotlib renderers
 └── backends/
@@ -142,8 +141,9 @@ dependency-free (stdlib `enum` only) prevents import cycles without needing
 
 ```python
 class Transformer(ABC):
+    stage: Stage                   # where it belongs in the ordering
     uses_target: bool = False      # declares y-consumption; audited
-    produces_columns: bool = True
+    cross_fitted: bool = False     # declares fit_transform != fit().transform()
 
     def fit(self, X, y=None, context=None) -> Self
     def transform(self, X) -> DataFrame
@@ -157,10 +157,13 @@ Four rules make leakage structurally impossible rather than merely discouraged:
 
 1. **All learned state lives in attributes with a trailing underscore**, set only inside
    `_fit`. `transform` reads them and nothing else.
-2. **`transform` never computes a statistic over its input.** Reviewed by a test that
-   greps the `transform` bodies for `.mean(`, `.median(`, `.quantile(`, `.std(`,
-   `.mode(`, `.value_counts(` and fails on a hit outside an allow-list. Crude, but it
-   catches the exact class of mistake found in notebook practice.
+2. **`transform` never computes a statistic over its input.** Enforced two ways. A
+   structural test (`test_leakage.py::test_transform_methods_compute_no_statistics`)
+   parses every `_transform` body with `ast` and fails on a call to `mean`, `median`,
+   `quantile`, `std`, `var`, `mode`, `value_counts`, `nunique`, `corr` or `factorize`
+   outside a recorded allow-list. A behavioural test transforms a frame whole and then
+   row by row and requires identical output, which fails on *any* transform-time
+   statistic, including ones the parser cannot name.
 3. **`fit_transform` is not free to differ from `fit().transform()`** except where
    cross-fitting demands it (target encoding). Those transformers set
    `cross_fitted = True` and are tested for the intended difference.
@@ -259,15 +262,15 @@ it.
 
 ### 5.2 Stage order
 
-The stage order is fixed and is itself a design claim, derived from notebook practice plus the
-correctness fixes:
+The stage order is fixed and is itself a design claim, derived from common practice
+plus the correctness fixes:
 
 ```
  1. CAST            dtype correction, sentinel -> NaN, downcast
  2. DROP_COLUMNS    constants, IDs, duplicate columns, over-missing columns
  3. DEDUPLICATE     exact duplicate rows   (rows, so before per-column fitting)
- 4. DATETIME        expand datetime -> calendar features; then treat as numeric
- 5. MISSING_FLAG    add indicator columns BEFORE imputation destroys the signal
+ 4. MISSING_FLAG    add indicator columns while the original columns still exist
+ 5. DATETIME        expand datetime -> calendar features; then treat as numeric
  6. OUTLIERS        detect and act; bounds fitted here, applied in transform
  7. MISSING         impute (after outliers, so "outlier -> NaN -> impute" is coherent)
  8. TRANSFORM       skew correction (log1p / Yeo-Johnson / quantile)
@@ -277,16 +280,18 @@ correctness fixes:
 12. SELECT          near-constant, correlation, variance filters
 ```
 
-Two orderings differ from notebook practice and are deliberate:
+Two orderings differ from the usual notebook order, deliberately:
 
-- **MISSING_FLAG before OUTLIERS and MISSING.** Missingness is frequently informative
-  (`a census-income notebook` established that `workclass` and `occupation` co-miss). If
-  imputation runs first, the signal is gone. Notebook practice never captured it.
-- **OUTLIERS before MISSING.** In notebook practice this ordering happened by accident (6.6 of
-  docs/design-rationale.md). Here it is chosen: the `"impute"` outlier strategy sets outliers to
-  NaN and the imputation stage then fills them with a statistic that was computed
-  *excluding* those outliers. That is the statistically defensible version of what the
-  notebook practice did accidentally.
+- **MISSING_FLAG before DATETIME, OUTLIERS and MISSING.** Missingness is frequently
+  informative (`a census-income notebook` established that `workclass` and `occupation`
+  co-miss). If imputation runs first the signal is gone, and notebook code rarely
+  captures it. It must also precede datetime expansion, which consumes the original column: a
+  `NaT` has to be flagged while the column it belongs to still exists.
+- **OUTLIERS before MISSING.** In notebook code this ordering usually happens by
+  accident (`design-rationale.md` §5.6). Here it is chosen: the `"impute"` outlier
+  strategy sets outliers to NaN and the imputation stage then fills them with a
+  statistic computed *excluding* those outliers. That is the statistically defensible
+  version of what usually happens by chance.
 
 `SELECT` runs last because correlation between *encoded* features is what matters to a
 model, not correlation between raw categorical labels.
