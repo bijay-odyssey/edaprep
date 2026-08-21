@@ -1,28 +1,37 @@
-"""Vectorised statistic kernels.
+"""Statistic kernels for profiling.
 
-Why this module exists
-----------------------
-Profiling a wide frame the naive way costs one pandas dispatch per statistic per
-column::
+What the benchmark decided
+--------------------------
+This module originally hand-rolled the moment computations in NumPy, on the premise
+that one fused pass over a 2-D block would beat pandas' per-column dispatch.  The
+benchmark said otherwise, at every shape tested:
 
-    for col in df.columns:            # 434 columns in the usual largest frame
-        df[col].mean(); df[col].std(); df[col].skew(); df[col].kurt(); ...
+===================  ==========  ==================  ===================
+shape                NumPy block  pandas per-column   pandas frame-level
+===================  ==========  ==================  ===================
+20,000 x 300            799 ms          557 ms              806 ms
+100,000 x 50            731 ms          381 ms              600 ms
+500,000 x 12            969 ms          542 ms              810 ms
+5,000 x 1000            838 ms         1210 ms              802 ms
+===================  ==========  ==================  ===================
 
-That is ~10 dispatches x 434 columns, each with its own NaN mask allocation.  The
-kernels here compute the whole family of moment-based statistics for a *block* of
-numeric columns in a fixed number of passes over one 2-D array, sharing the NaN mask.
+and used 298 MiB against pandas' 2 MiB.  Cache-sized chunking recovered some of the
+gap but never closed it: pandas computes m2, m3 and m4 in a *single fused Cython pass*
+per column, while any NumPy formulation needs a separate traversal for each power and
+is therefore memory-bandwidth bound.
 
-Numerical policy
-----------------
-Moments are computed by the two-pass centred method (mean first, then centred powers),
-not by accumulating raw power sums.  Raw power sums are one pass faster and lose
-catastrophic amounts of precision when the mean is large relative to the spread; for a
-column like ``price`` with mean 250,000 and sd 50, the naive variance can come out
-negative.  Correctness before speed, per the design goal.
+So the hand-rolled kernel was deleted.  What remains delegates to pandas and adds only
+the things pandas does not provide:
 
-Skewness and kurtosis use the bias-corrected sample estimators (the same
-Fisher-Pearson adjusted forms pandas uses), so results agree with ``Series.skew()`` and
-``Series.kurt()`` to floating-point tolerance.  This is asserted in the tests.
+* **infinity handling** -- pandas' mean of a column containing ``inf`` is ``inf``,
+  which poisons every downstream moment; infinities are counted and masked first;
+* **a scale-relative degeneracy guard** -- pandas zeroes moments below a fixed
+  ``1e-14``, which misfires on genuinely small data and misses rounding noise on large
+  data (see :func:`_denoise`);
+* zero/negative counts, the MAD, and the :class:`NumericStats` value type.
+
+This is section 28 of the design goal applied literally: do not reimplement what pandas
+already does well, and let measurement rather than intuition decide which case that is.
 """
 
 from __future__ import annotations
@@ -50,7 +59,6 @@ __all__ = [
 #: Quantiles computed for every numeric column.  P1/P99 feed the winsorising fence,
 #: the quartiles feed the IQR fence, and P5/P95 are reported for context.
 DEFAULT_QUANTILES: Tuple[float, ...] = (0.01, 0.05, 0.25, 0.50, 0.75, 0.95, 0.99)
-
 
 @dataclass(frozen=True)
 class NumericStats:
@@ -92,7 +100,7 @@ class NumericStats:
         return self.maximum - self.minimum
 
     def to_dict(self) -> Dict[str, object]:
-        out = {
+        return {
             "count": self.count,
             "n_missing": self.n_missing,
             "mean": _clean(self.mean),
@@ -110,49 +118,28 @@ class NumericStats:
             "n_infinite": self.n_infinite,
             "quantiles": {str(q): _clean(v) for q, v in self.quantiles.items()},
         }
-        return out
 
 
 @contextlib.contextmanager
-def _quiet_nan_reductions():
-    """Silence the two NumPy warnings that all-NaN reductions legitimately raise.
+def _quiet_reductions():
+    """Silence the NumPy/pandas warnings that degenerate reductions legitimately raise.
 
-    Scoped to the single expression that can raise them.  ``edaprep`` never installs a
-    global warning filter.
+    Scoped to the expressions that can raise them.  ``edaprep`` never installs a global
+    warning filter: notebook practice's module-level ``filterwarnings("ignore")`` is
+    exactly what hid a real bug.
     """
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message="Mean of empty slice")
         warnings.filterwarnings("ignore", message="All-NaN slice encountered")
+        warnings.filterwarnings("ignore", message="All-NaN axis encountered")
         warnings.filterwarnings("ignore", message="Degrees of freedom <= 0")
         warnings.filterwarnings("ignore", message="overflow encountered")
-        # Overflow is possible and meaningful: centred values around 1e300 square to
-        # infinity, so the variance genuinely is infinite.  Reporting inf (rendered as
-        # null in JSON, nan in the summary) is truthful; raising is not.
+        warnings.filterwarnings("ignore", message="invalid value encountered")
+        # Overflow is possible and meaningful: values around 1e300 square to infinity,
+        # so the variance genuinely is infinite.  Reporting inf (rendered as null in
+        # JSON) is truthful; raising is not.
         with np.errstate(invalid="ignore", divide="ignore", over="ignore"):
             yield
-
-
-def _denoise_m2(m2: np.ndarray, mean: np.ndarray) -> np.ndarray:
-    """Zero out a second moment that is indistinguishable from rounding noise.
-
-    Centring a column of 25 copies of ``38479.9277006`` leaves values of about one ULP
-    (~7e-12) rather than exactly zero, because the mean is not exactly representable.
-    ``m2`` is then ~5e-23: non-zero, so the skewness formula divides noise by noise and
-    returns an arbitrary number near 1.  The column is constant; the answer must be 0.
-
-    pandas guards this with a fixed absolute cut-off (``m2 < 1e-14``), which is
-    scale-dependent: it misfires on genuinely tiny data and misses noise on very large
-    data.  The guard here is relative -- ``m2`` must exceed the square of one ULP of the
-    mean, with a small factor for accumulated error -- so it behaves the same at every
-    magnitude.
-    """
-    with np.errstate(invalid="ignore", over="ignore"):
-        noise_floor = (np.finfo(np.float64).eps * np.abs(mean)) ** 2 * 16.0
-    degenerate = np.isfinite(noise_floor) & (m2 <= noise_floor)
-    if np.any(degenerate):
-        m2 = m2.copy()
-        m2[degenerate] = 0.0
-    return m2
 
 
 def _clean(value: float) -> Optional[float]:
@@ -165,26 +152,69 @@ def _clean(value: float) -> Optional[float]:
     return f
 
 
-def _as_float_block(frame: pd.DataFrame) -> np.ndarray:
-    """Materialise a numeric frame as a 2-D float64 array with NaN for missing.
+def _denoise(
+    skew: np.ndarray, kurtosis: np.ndarray, std: np.ndarray, mean: np.ndarray
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Zero moments whose spread is indistinguishable from rounding noise.
 
-    Nullable extension dtypes (``Int64``, ``Float64``, ``boolean``) do not convert via
-    ``.to_numpy()`` without an explicit ``na_value``; handling them here is what keeps
-    the rest of the library dtype-agnostic.
+    Centring a column of 25 copies of ``38479.9277006`` leaves values of about one ULP
+    (~7e-12) rather than exactly zero, because the mean is not exactly representable.
+    Skewness then divides noise by noise and returns an arbitrary number near 1, when
+    the column is in fact constant and the answer must be 0.
+
+    pandas guards this with a fixed absolute cut-off on the moments (``|m| < 1e-14``).
+    That is scale-dependent in both directions: it reports 0 for genuinely small data
+    where the moments are well determined -- ``[0, a, a, a]`` has skewness exactly -2
+    for every ``a``, yet pandas returns 0 once ``a`` drops below about 1e-9 -- and it
+    misses rounding noise on data large enough that the noise exceeds 1e-14.
+
+    The guard here compares the standard deviation with one ULP of the mean, so it
+    fires exactly when the spread *is* rounding noise, at any magnitude.
     """
-    if frame.shape[1] == 0:
-        return np.empty((len(frame), 0), dtype=np.float64)
-    columns = []
+    with np.errstate(invalid="ignore", over="ignore"):
+        noise_floor = np.finfo(np.float64).eps * np.abs(mean) * 4.0
+    degenerate = np.isfinite(noise_floor) & np.isfinite(std) & (std <= noise_floor)
+    if not np.any(degenerate):
+        return skew, kurtosis
+    skew = np.where(degenerate & np.isfinite(skew), 0.0, skew)
+    kurtosis = np.where(degenerate & np.isfinite(kurtosis), 0.0, kurtosis)
+    return skew, kurtosis
+
+
+def _to_numeric_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    """A float64 view of ``frame`` with missing values as NaN.
+
+    Nullable extension dtypes (``Int64``, ``Float64``, ``boolean``) and categoricals do
+    not participate in arithmetic reductions the same way as plain floats; normalising
+    once here is what keeps the rest of the library dtype-agnostic.  Columns that are
+    already float64 are passed through without a copy.
+    """
+    needs_cast = [
+        name
+        for name in frame.columns
+        if frame[name].dtype != np.float64
+    ]
+    if not needs_cast:
+        return frame
+    converted = {}
     for name in frame.columns:
         series = frame[name]
-        if isinstance(series.dtype, pd.CategoricalDtype):
-            series = series.astype("float64")
-        try:
-            arr = series.to_numpy(dtype=np.float64, na_value=np.nan, copy=False)
-        except (TypeError, ValueError):
-            arr = pd.to_numeric(series, errors="coerce").to_numpy(dtype=np.float64)
-        columns.append(arr)
-    return np.column_stack(columns) if columns else np.empty((len(frame), 0))
+        if series.dtype == np.float64:
+            converted[str(name)] = series
+        elif isinstance(series.dtype, pd.CategoricalDtype):
+            converted[str(name)] = series.astype("float64")
+        else:
+            try:
+                converted[str(name)] = pd.Series(
+                    series.to_numpy(dtype=np.float64, na_value=np.nan, copy=False),
+                    index=frame.index,
+                    name=str(name),
+                )
+            except (TypeError, ValueError):
+                converted[str(name)] = pd.to_numeric(series, errors="coerce").astype(
+                    "float64"
+                )
+    return pd.DataFrame(converted, index=frame.index, copy=False)
 
 
 def numeric_block_stats(
@@ -195,9 +225,6 @@ def numeric_block_stats(
 ) -> Dict[str, NumericStats]:
     """Compute :class:`NumericStats` for every column of a numeric frame.
 
-    All columns share one NaN mask and one pass per statistic family, rather than one
-    dispatch per (column, statistic) pair.
-
     Parameters
     ----------
     frame :
@@ -205,85 +232,207 @@ def numeric_block_stats(
     quantile_levels :
         Quantiles to compute, in [0, 1].
     compute_moments :
-        Set ``False`` to skip skewness and kurtosis, the most expensive part, for
-        "quick" analysis levels.
+        Set ``False`` to skip skewness and kurtosis -- the most expensive statistics --
+        for the "quick" analysis level.
     compute_mad :
-        Set ``False`` to skip the median absolute deviation.
+        Set ``False`` to skip the median absolute deviation, which costs a second
+        median pass over a full-size intermediate.
     """
     names: List[str] = [str(c) for c in frame.columns]
-    n_rows = len(frame)
     if not names:
         return {}
 
-    block = _as_float_block(frame)
-    finite_mask = np.isfinite(block)
-    valid = ~np.isnan(block)  # NaN is missing; +/-inf is present but not finite
-    n_valid = valid.sum(axis=0)
-    n_infinite = (valid & ~finite_mask).sum(axis=0)
+    n_rows = len(frame)
+    width = len(names)
+    levels = np.asarray(quantile_levels, dtype=np.float64)
+    data = _to_numeric_frame(frame)
 
-    # Statistics are computed over *finite* values only.  An infinity in a column would
-    # otherwise poison the mean and every downstream moment, silently.
-    work = np.where(finite_mask, block, np.nan)
-    n_finite = finite_mask.sum(axis=0)
+    with _quiet_reductions():
+        # One pass over the columns for every statistic that would otherwise
+        # materialise a full-frame intermediate.  `(data == 0).sum()`,
+        # `(data < 0).sum()` and the MAD's `(data - median).abs()` each allocate a
+        # whole extra frame: on a 20,000 x 300 input that is three 48 MiB temporaries
+        # for statistics that need only one column in memory at a time.
+        n_missing = np.zeros(width, dtype=np.int64)
+        n_infinite = np.zeros(width, dtype=np.int64)
+        n_zeros = np.zeros(width, dtype=np.int64)
+        n_negative = np.zeros(width, dtype=np.int64)
+        infinite_columns: Dict[str, np.ndarray] = {}
 
-    # An all-missing column makes NumPy emit "Mean of empty slice" / "All-NaN slice
-    # encountered".  Both are expected here and the NaN result is the intended answer,
-    # so they are silenced locally rather than globally -- the usual
-    # ``filterwarnings("ignore")`` at module scope is exactly what hid a real bug.
-    with _quiet_nan_reductions():
-        mean = np.nanmean(work, axis=0) if n_rows else np.full(len(names), np.nan)
-        centred = work - mean
-        m2 = _denoise_m2(np.nanmean(centred**2, axis=0), mean)
-        variance = _sample_variance(m2, n_finite)
-        std = np.sqrt(variance)
-        minimum = np.nanmin(work, axis=0) if n_rows else np.full(len(names), np.nan)
-        maximum = np.nanmax(work, axis=0) if n_rows else np.full(len(names), np.nan)
+        for i, name in enumerate(data.columns):
+            values = data[name].to_numpy(dtype=np.float64, copy=False)
+            missing = np.isnan(values)
+            n_missing[i] = int(missing.sum())
+            # Infinities are present but not finite.  Left in place they turn the mean
+            # -- and therefore every moment -- into inf or nan, so they are counted and
+            # then masked to NaN, and the remaining statistics describe finite values.
+            infinite = np.isinf(values)
+            count = int(infinite.sum())
+            if count:
+                n_infinite[i] = count
+                infinite_columns[str(name)] = infinite
+            n_zeros[i] = int(np.count_nonzero(values == 0.0))
+            n_negative[i] = int(np.count_nonzero(values < 0.0))
 
-        if compute_moments:
-            m3 = np.nanmean(centred**3, axis=0)
-            m4 = np.nanmean(centred**4, axis=0)
-            skew_vals = _skew_from_moments(m2, m3, n_finite)
-            kurt_vals = _kurtosis_from_moments(m2, m4, n_finite)
+        if infinite_columns:
+            data = data.copy()
+            for name, mask in infinite_columns.items():
+                data.loc[mask, name] = np.nan
+        del infinite_columns
+
+        n_valid = n_rows - n_missing  # NaN is missing; inf is present but not finite
+
+        if n_rows == 0:
+            empty = np.full(width, np.nan)
+            mean = std = minimum = maximum = skew = kurt = mad = empty
+            q_matrix = np.full((len(levels), width), np.nan)
         else:
-            skew_vals = np.full(len(names), np.nan)
-            kurt_vals = np.full(len(names), np.nan)
+            mean, std, minimum, maximum, skew, kurt = _moments(data, compute_moments)
+            if compute_moments:
+                skew, kurt = _repair_small_magnitude(data, mean, std, skew, kurt)
+            skew, kurt = _denoise(skew, kurt, std, mean)
 
-        q_levels = np.asarray(quantile_levels, dtype=np.float64)
-        if n_rows and np.any(n_finite > 0):
-            q_matrix = np.nanquantile(work, q_levels, axis=0)
-        else:
-            q_matrix = np.full((len(q_levels), len(names)), np.nan)
+            q_frame = _chunked_quantile(data, levels)
+            q_matrix = q_frame.to_numpy()
 
-        n_zeros = np.nansum(work == 0.0, axis=0).astype(np.int64)
-        n_negative = np.nansum(work < 0.0, axis=0).astype(np.int64)
+            if compute_mad:
+                medians = (
+                    q_frame.loc[0.50].to_numpy()
+                    if 0.50 in q_frame.index
+                    else data.median().to_numpy()
+                )
+                mad = np.empty(width, dtype=np.float64)
+                for i, name in enumerate(data.columns):
+                    values = data[name].to_numpy(dtype=np.float64, copy=False)
+                    mad[i] = np.nanmedian(np.abs(values - medians[i]))
+            else:
+                mad = np.full(width, np.nan)
 
-        if compute_mad:
-            median_row = q_matrix[list(q_levels).index(0.50)] if 0.50 in q_levels else (
-                np.nanmedian(work, axis=0)
-            )
-            mad_vals = np.nanmedian(np.abs(work - median_row), axis=0)
-        else:
-            mad_vals = np.full(len(names), np.nan)
+        variance = std**2
 
-    out: Dict[str, NumericStats] = {}
-    for i, name in enumerate(names):
-        out[name] = NumericStats(
+    return {
+        name: NumericStats(
             count=int(n_valid[i]),
-            n_missing=int(n_rows - n_valid[i]),
+            n_missing=int(n_missing[i]),
             mean=float(mean[i]),
             std=float(std[i]),
             variance=float(variance[i]),
             minimum=float(minimum[i]),
             maximum=float(maximum[i]),
-            skew=float(skew_vals[i]),
-            kurtosis=float(kurt_vals[i]),
-            quantiles={float(q): float(q_matrix[j, i]) for j, q in enumerate(q_levels)},
+            skew=float(skew[i]),
+            kurtosis=float(kurt[i]),
+            quantiles={float(q): float(q_matrix[j, i]) for j, q in enumerate(levels)},
             n_zeros=int(n_zeros[i]),
             n_negative=int(n_negative[i]),
             n_infinite=int(n_infinite[i]),
-            mad=float(mad_vals[i]),
+            mad=float(mad[i]),
         )
-    return out
+        for i, name in enumerate(names)
+    }
+
+
+#: Below this second moment, pandas' absolute ``_zero_out_fperr`` cut-off (1e-14) can
+#: fire on data whose moments are in fact well determined.  1e-12 leaves a safe margin.
+_SMALL_MOMENT = 1e-13
+
+
+def _repair_small_magnitude(
+    data: pd.DataFrame,
+    mean: np.ndarray,
+    std: np.ndarray,
+    skew: np.ndarray,
+    kurtosis: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Recompute moments for columns small enough to trip pandas' absolute cut-off.
+
+    ``pandas.core.nanops`` zeroes any moment whose magnitude is below 1e-14 before
+    computing skewness.  For a column of values around 1e-9 the second moment is
+    ~1e-18, so ``Series.skew()`` returns 0.0 even though the shape is perfectly well
+    determined: ``[0, a, a, a]`` has skewness exactly -2 for every ``a``.
+
+    Skewness and kurtosis are invariant under affine rescaling, so the fix is to
+    recompute those columns from ``(x - mean) / std``, which puts them at unit scale
+    where the cut-off cannot reach.  Only columns that are actually at risk are
+    touched, so the cost is negligible on ordinary data.
+
+    Columns whose spread really *is* rounding noise are handled separately by
+    :func:`_denoise`, which runs afterwards and wins.
+    """
+    at_risk = np.flatnonzero(
+        np.isfinite(std) & (std > 0.0) & (std**2 < _SMALL_MOMENT)
+    )
+    if at_risk.size == 0:
+        return skew, kurtosis
+    skew = skew.copy()
+    kurtosis = kurtosis.copy()
+    columns = list(data.columns)
+    for i in at_risk:
+        rescaled = (data[columns[i]] - mean[i]) / std[i]
+        skew[i] = rescaled.skew()
+        kurtosis[i] = rescaled.kurt()
+    return skew, kurtosis
+
+
+#: Target size of one intermediate, in bytes.  ``DataFrame.quantile`` sorts a copy of
+#: everything it is given, so calling it on a whole frame allocates the whole frame
+#: again; chunking bounds that without giving up the vectorisation, which per-column
+#: quantile calls do (measured 1.8x slower on a 20,000 x 300 frame).
+_QUANTILE_CHUNK_BYTES = 16 * 1024 * 1024
+
+
+def _chunked_quantile(data: pd.DataFrame, levels: np.ndarray) -> pd.DataFrame:
+    """``data.quantile(levels)`` with a bounded working set."""
+    n_rows = len(data)
+    per_column = max(n_rows * 8, 1)
+    chunk = max(1, min(data.shape[1], _QUANTILE_CHUNK_BYTES // per_column))
+    if chunk >= data.shape[1]:
+        return data.quantile(list(levels))
+    parts = [
+        data.iloc[:, start : start + chunk].quantile(list(levels))
+        for start in range(0, data.shape[1], chunk)
+    ]
+    return pd.concat(parts, axis=1)
+
+
+def _moments(data: pd.DataFrame, compute_moments: bool) -> Tuple[np.ndarray, ...]:
+    """Mean, std, min, max and (optionally) skew and kurtosis, as aligned arrays.
+
+    Per-column rather than frame-level, which is the opposite of the obvious choice and
+    was settled by measurement.  ``DataFrame.mean()`` and friends operate on pandas'
+    internal blocks and allocate intermediates proportional to the *whole frame*:
+
+    ===============  ==========================  =========================
+    shape            per-column                  frame-level
+    ===============  ==========================  =========================
+    20,000 x 300         543 ms /   3.1 MiB          1684 ms / 377.8 MiB
+    5,000 x 1000         850 ms /   4.4 MiB           915 ms / 157.6 MiB
+    2,000 x 3000        1680 ms /  10.0 MiB          1375 ms / 189.3 MiB
+    ===============  ==========================  =========================
+
+    Frame-level only wins on time past about 3000 columns, and then by 1.2x for 19x
+    the memory.  Both call the same pandas kernels, so they agree exactly; there is no
+    accuracy trade-off, only a resource one, and it points one way.
+    """
+    width = data.shape[1]
+    means, stds, mins, maxs, skews, kurts = [], [], [], [], [], []
+    for name in data.columns:
+        column = data[name]
+        means.append(column.mean())
+        stds.append(column.std(ddof=1))
+        mins.append(column.min())
+        maxs.append(column.max())
+        if compute_moments:
+            skews.append(column.skew())
+            kurts.append(column.kurt())
+    empty = np.full(width, np.nan)
+    return (
+        np.asarray(means, dtype=np.float64),
+        np.asarray(stds, dtype=np.float64),
+        np.asarray(mins, dtype=np.float64),
+        np.asarray(maxs, dtype=np.float64),
+        np.asarray(skews, dtype=np.float64) if compute_moments else empty,
+        np.asarray(kurts, dtype=np.float64) if compute_moments else empty,
+    )
 
 
 def series_numeric_stats(
@@ -291,87 +440,34 @@ def series_numeric_stats(
 ) -> NumericStats:
     """Single-column convenience wrapper around :func:`numeric_block_stats`."""
     name = str(series.name) if series.name is not None else "_"
-    frame = series.to_frame(name=name)
-    return numeric_block_stats(frame, quantile_levels)[name]
-
-
-def _sample_variance(m2: np.ndarray, n: np.ndarray) -> np.ndarray:
-    """Convert the population second moment to the unbiased sample variance (ddof=1)."""
-    n = n.astype(np.float64)
-    out = np.full_like(m2, np.nan, dtype=np.float64)
-    ok = n > 1
-    out[ok] = m2[ok] * n[ok] / (n[ok] - 1.0)
-    return out
-
-
-def _skew_from_moments(m2: np.ndarray, m3: np.ndarray, n: np.ndarray) -> np.ndarray:
-    """Adjusted Fisher-Pearson standardised moment coefficient G1.
-
-    ``G1 = sqrt(n(n-1))/(n-2) * m3 / m2**1.5``, undefined for n < 3.
-
-    Zero-variance columns return ``0.0``, matching ``pandas.Series.skew()``.  SciPy
-    returns NaN there instead.  pandas' convention is the more useful one for a
-    planner: a constant column has no skew to correct, and ``0.0`` routes it to
-    "no transform" without every downstream rule needing a NaN special case.  The
-    quantity is mathematically undefined either way (0/0), so this is a convention,
-    not a correctness claim, and the tests pin it to pandas.
-    """
-    n = n.astype(np.float64)
-    out = np.full_like(m2, np.nan, dtype=np.float64)
-    defined = n > 2
-    out[defined & (m2 <= 0)] = 0.0
-    ok = defined & (m2 > 0)
-    if not np.any(ok):
-        return out
-    g1 = m3[ok] / np.power(m2[ok], 1.5)
-    out[ok] = np.sqrt(n[ok] * (n[ok] - 1.0)) / (n[ok] - 2.0) * g1
-    return out
-
-
-def _kurtosis_from_moments(m2: np.ndarray, m4: np.ndarray, n: np.ndarray) -> np.ndarray:
-    """Bias-corrected excess kurtosis G2, matching ``pandas.Series.kurt()``.
-
-    ``G2 = (n-1)/((n-2)(n-3)) * ((n+1) * g2 + 6)`` with ``g2 = m4/m2**2 - 3``.
-    Undefined for n < 4; zero-variance columns return ``0.0`` as pandas does.
-    """
-    n = n.astype(np.float64)
-    out = np.full_like(m2, np.nan, dtype=np.float64)
-    defined = n > 3
-    out[defined & (m2 <= 0)] = 0.0
-    ok = defined & (m2 > 0)
-    if not np.any(ok):
-        return out
-    g2 = m4[ok] / (m2[ok] ** 2) - 3.0
-    out[ok] = (n[ok] - 1.0) / ((n[ok] - 2.0) * (n[ok] - 3.0)) * ((n[ok] + 1.0) * g2 + 6.0)
-    return out
+    return numeric_block_stats(series.to_frame(name=name), quantile_levels)[name]
 
 
 def skewness(values: np.ndarray) -> float:
-    """Bias-corrected sample skewness of a 1-D array, ignoring NaN."""
+    """Bias-corrected sample skewness of a 1-D array, ignoring NaN and infinities.
+
+    Zero-variance input returns ``0.0``, matching ``pandas.Series.skew()``; SciPy
+    returns NaN there instead.  The quantity is mathematically undefined either way
+    (0/0), so this is a convention, and the tests pin it to pandas.
+    """
     arr = np.asarray(values, dtype=np.float64).ravel()
     arr = arr[np.isfinite(arr)]
-    n = arr.size
-    if n < 3:
+    if arr.size < 3:
         return float("nan")
-    mean = arr.mean()
-    centred = arr - mean
-    m2 = _denoise_m2(np.array([np.mean(centred**2)]), np.array([mean]))
-    m3 = np.array([np.mean(centred**3)])
-    return float(_skew_from_moments(m2, m3, np.array([n]))[0])
+    with _quiet_reductions():
+        frame = pd.DataFrame({"_": arr})
+        return float(numeric_block_stats(frame, quantile_levels=(0.5,))["_"].skew)
 
 
 def kurtosis(values: np.ndarray) -> float:
     """Bias-corrected sample excess kurtosis of a 1-D array, ignoring NaN."""
     arr = np.asarray(values, dtype=np.float64).ravel()
     arr = arr[np.isfinite(arr)]
-    n = arr.size
-    if n < 4:
+    if arr.size < 4:
         return float("nan")
-    mean = arr.mean()
-    centred = arr - mean
-    m2 = _denoise_m2(np.array([np.mean(centred**2)]), np.array([mean]))
-    m4 = np.array([np.mean(centred**4)])
-    return float(_kurtosis_from_moments(m2, m4, np.array([n]))[0])
+    with _quiet_reductions():
+        frame = pd.DataFrame({"_": arr})
+        return float(numeric_block_stats(frame, quantile_levels=(0.5,))["_"].kurtosis)
 
 
 def median_abs_deviation(values: np.ndarray, scale: float = 1.0) -> float:
@@ -399,7 +495,9 @@ def quantiles(values: np.ndarray, levels: Sequence[float]) -> Dict[float, float]
     return {float(q): float(v) for q, v in zip(levels, np.atleast_1d(computed))}
 
 
-def top_categories(series: pd.Series, k: int = 10, dropna: bool = True) -> List[Tuple[object, int]]:
+def top_categories(
+    series: pd.Series, k: int = 10, dropna: bool = True
+) -> List[Tuple[object, int]]:
     """The ``k`` most frequent values and their counts, in descending order."""
     counts = series.value_counts(dropna=dropna)
     return [(idx, int(val)) for idx, val in counts.head(k).items()]
@@ -415,5 +513,4 @@ def estimate_memory(frame: pd.DataFrame, deep: bool = True) -> Dict[str, int]:
     """
     usage = frame.memory_usage(index=True, deep=deep)
     per_column = {str(k): int(v) for k, v in usage.items()}
-    total = int(usage.sum())
-    return {"total": total, **per_column}
+    return {"total": int(usage.sum()), **per_column}

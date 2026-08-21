@@ -12,5 +12,5 @@ venv/
 .mypy_cache/
 .ruff_cache/
 _reference/
-benchmarks/results/*.json
+# benchmark results are committed: they are the evidence for docs/performance.md
 *.ipynb_checkpoints

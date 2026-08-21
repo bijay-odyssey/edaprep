@@ -118,14 +118,22 @@ def detect_sentinels(
                 str(c): int(counts.get(c, 0)) for c in hits if int(counts.get(c, 0)) >= min_count
             }
         else:
-            normalised = series.dropna().astype(str).str.strip().str.lower()
-            if normalised.empty:
+            # Count first, then normalise the *distinct* values.  Normalising every
+            # cell (`.astype(str).str.strip().str.lower()` over the whole column) costs
+            # one Python-level call per row; a 100,000-row column with 500 distinct
+            # values does 200x more work than it needs to, and this scan showed up as
+            # 21% of profiling time in the benchmark.
+            counts = series.value_counts(dropna=True)
+            if counts.empty:
                 continue
-            counts = normalised.value_counts()
-            per_sentinel = {}
+            per_sentinel: Dict[str, int] = {}
             for value, count in counts.items():
-                if value in wanted and int(count) >= min_count:
-                    per_sentinel[str(value)] = int(count)
+                if not isinstance(value, str):
+                    continue
+                normalised = value.strip().lower()
+                if normalised in wanted and int(count) >= min_count:
+                    per_sentinel[normalised] = per_sentinel.get(normalised, 0) + int(count)
+            per_sentinel = {k: v for k, v in per_sentinel.items() if v >= min_count}
 
         if per_sentinel:
             found[str(name)] = per_sentinel
@@ -304,11 +312,15 @@ def detect_whitespace_issues(
         series = frame[name]
         if not (series.dtype == object or isinstance(series.dtype, pd.StringDtype)):
             continue
-        values = series.dropna()
-        if values.empty:
+        # As in detect_sentinels: work on the distinct values and weight by their
+        # counts, rather than stripping every cell in the column.
+        counts = series.value_counts(dropna=True)
+        if counts.empty:
             continue
-        as_str = values.astype(str)
-        n_bad = int((as_str != as_str.str.strip()).sum())
+        n_bad = 0
+        for value, count in counts.items():
+            if isinstance(value, str) and value != value.strip():
+                n_bad += int(count)
         if n_bad:
             out[str(name)] = n_bad
     return out

@@ -1,0 +1,209 @@
+{
+  "environment": {
+    "python": "3.10.6",
+    "numpy": "1.24.4",
+    "pandas": "2.2.3",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "edaprep": "0.1.0"
+  },
+  "settings": {
+    "rows": 100000,
+    "wide_rows": 20000,
+    "wide_columns": 300,
+    "repeat": 5
+  },
+  "results": [
+    {
+      "name": "profile(df, target=...)",
+      "group": "profiling",
+      "seconds": 0.9699147000001176,
+      "peak_mib": 25.5972261428833,
+      "rows": 100000,
+      "columns": 14,
+      "baseline_seconds": 0.2421899000000849,
+      "baseline_peak_mib": 14.993108749389648,
+      "baseline_name": "hand-written pandas EDA block",
+      "notes": "edaprep additionally infers semantic types and runs quality checks"
+    },
+    {
+      "name": "profile(quick)",
+      "group": "profiling",
+      "seconds": 0.6346814000003178,
+      "peak_mib": 24.472397804260254,
+      "rows": 100000,
+      "columns": 14,
+      "baseline_seconds": null,
+      "baseline_peak_mib": null,
+      "baseline_name": null,
+      "notes": ""
+    },
+    {
+      "name": "profile (300 columns)",
+      "group": "profiling",
+      "seconds": 2.904833399999916,
+      "peak_mib": 95.79208374023438,
+      "rows": 20000,
+      "columns": 300,
+      "baseline_seconds": null,
+      "baseline_peak_mib": null,
+      "baseline_name": null,
+      "notes": ""
+    },
+    {
+      "name": "numeric_block_stats (300 cols)",
+      "group": "profiling",
+      "seconds": 0.5777593000002526,
+      "peak_mib": 48.83139419555664,
+      "rows": 20000,
+      "columns": 300,
+      "baseline_seconds": 1.0561821999999665,
+      "baseline_peak_mib": 1.6224260330200195,
+      "baseline_name": "per-column pandas dispatch",
+      "notes": ""
+    },
+    {
+      "name": "Scaler (standard, 6 cols)",
+      "group": "transformers",
+      "seconds": 0.006883700000344106,
+      "peak_mib": 5.365548133850098,
+      "rows": 100000,
+      "columns": 6,
+      "baseline_seconds": 0.026665000000321015,
+      "baseline_peak_mib": 14.990782737731934,
+      "baseline_name": "sklearn StandardScaler",
+      "notes": "edaprep returns a labelled DataFrame; sklearn returns a bare array"
+    },
+    {
+      "name": "MissingValueHandler (median)",
+      "group": "transformers",
+      "seconds": 0.005225200000040786,
+      "peak_mib": 2.996614456176758,
+      "rows": 100000,
+      "columns": 1,
+      "baseline_seconds": 0.01699030000008861,
+      "baseline_peak_mib": 4.1937971115112305,
+      "baseline_name": "sklearn SimpleImputer",
+      "notes": ""
+    },
+    {
+      "name": "OneHotEncoder (8 levels)",
+      "group": "transformers",
+      "seconds": 0.04735729999993055,
+      "peak_mib": 4.3157148361206055,
+      "rows": 100000,
+      "columns": 2,
+      "baseline_seconds": 0.04083189999983006,
+      "baseline_peak_mib": 11.300535202026367,
+      "baseline_name": "sklearn OneHotEncoder (dense)",
+      "notes": ""
+    },
+    {
+      "name": "TargetEncoder (500 levels, 5-fold)",
+      "group": "transformers",
+      "seconds": 0.12445819999993546,
+      "peak_mib": 8.860311508178711,
+      "rows": 100000,
+      "columns": 1,
+      "baseline_seconds": null,
+      "baseline_peak_mib": null,
+      "baseline_name": null,
+      "notes": "cross-fitted; no sklearn baseline is equivalent"
+    },
+    {
+      "name": "OutlierHandler (IQR clip, 6 cols)",
+      "group": "transformers",
+      "seconds": 0.0251564000000144,
+      "peak_mib": 5.206045150756836,
+      "rows": 100000,
+      "columns": 6,
+      "baseline_seconds": 0.041365200000200275,
+      "baseline_peak_mib": 15.008880615234375,
+      "baseline_name": "the usual IQR block",
+      "notes": ""
+    },
+    {
+      "name": "detect_outliers (1 col)",
+      "group": "transformers",
+      "seconds": 0.004284999999981665,
+      "peak_mib": 1.5345611572265625,
+      "rows": 100000,
+      "columns": 1,
+      "baseline_seconds": null,
+      "baseline_peak_mib": null,
+      "baseline_name": null,
+      "notes": ""
+    },
+    {
+      "name": "AutoPipeline.fit_transform (tree)",
+      "group": "pipelines",
+      "seconds": 1.3697091000003638,
+      "peak_mib": 33.32966613769531,
+      "rows": 100000,
+      "columns": 14,
+      "baseline_seconds": null,
+      "baseline_peak_mib": null,
+      "baseline_name": null,
+      "notes": "includes profiling, planning and reporting"
+    },
+    {
+      "name": "AutoPipeline.fit_transform (linear)",
+      "group": "pipelines",
+      "seconds": 1.6666073999999753,
+      "peak_mib": 36.58587837219238,
+      "rows": 100000,
+      "columns": 14,
+      "baseline_seconds": null,
+      "baseline_peak_mib": null,
+      "baseline_name": null,
+      "notes": "includes profiling, planning and reporting"
+    },
+    {
+      "name": "AutoPipeline.transform (fitted)",
+      "group": "pipelines",
+      "seconds": 0.24024050000025454,
+      "peak_mib": 35.62619590759277,
+      "rows": 100000,
+      "columns": 14,
+      "baseline_seconds": 0.10412429999996675,
+      "baseline_peak_mib": 67.1889009475708,
+      "baseline_name": "sklearn ColumnTransformer",
+      "notes": "edaprep also expands datetimes, flags missingness and journals effects"
+    },
+    {
+      "name": "EDA.analyze('quick')",
+      "group": "eda",
+      "seconds": 0.5209282999999232,
+      "peak_mib": 15.901168823242188,
+      "rows": 100000,
+      "columns": 14,
+      "baseline_seconds": null,
+      "baseline_peak_mib": null,
+      "baseline_name": null,
+      "notes": ""
+    },
+    {
+      "name": "EDA.analyze('standard')",
+      "group": "eda",
+      "seconds": 1.2053230999999869,
+      "peak_mib": 24.472381591796875,
+      "rows": 100000,
+      "columns": 14,
+      "baseline_seconds": null,
+      "baseline_peak_mib": null,
+      "baseline_name": null,
+      "notes": ""
+    },
+    {
+      "name": "EDA.analyze('deep')",
+      "group": "eda",
+      "seconds": 1.4112805999998272,
+      "peak_mib": 24.47190284729004,
+      "rows": 100000,
+      "columns": 14,
+      "baseline_seconds": null,
+      "baseline_peak_mib": null,
+      "baseline_name": null,
+      "notes": ""
+    }
+  ]
+}

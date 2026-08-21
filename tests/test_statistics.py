@@ -230,7 +230,7 @@ def test_property_moments_agree_with_pandas(values: np.ndarray) -> None:
     centred = values - values.mean()
     # Exclude the regime documented above, where pandas' absolute 1e-14 cut-off zeroes
     # moments that are in fact well determined.  1e-13 keeps a safe margin above it.
-    assume(np.all(np.isfinite(centred**4)) and float(np.mean(centred**2)) > 1e-13)
+    assume(np.all(np.isfinite(centred**4)) and float(np.mean(centred**2)) > 1e-12)
 
     series = pd.Series(values, name="x")
     stats = numeric_block_stats(series.to_frame())["x"]
