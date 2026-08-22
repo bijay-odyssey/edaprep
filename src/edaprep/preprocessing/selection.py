@@ -364,7 +364,11 @@ class CorrelationFilter(_Dropper):
                 sampled = True
 
             corr = frame.corr(method=self.method, numeric_only=True).abs()
-            corr = corr.fillna(0.0).to_numpy()
+            # copy=True is load-bearing, not defensive: pandas 2.3+ hands back a
+            # read-only view of its own block, and `fill_diagonal` mutates in place, so
+            # without it numpy raises "underlying array is read-only".  It surfaces only
+            # on newer pandas, which is why it needs saying rather than just doing.
+            corr = corr.fillna(0.0).to_numpy(dtype=np.float64, copy=True)
             names = list(self.columns_)
             np.fill_diagonal(corr, 0.0)
 

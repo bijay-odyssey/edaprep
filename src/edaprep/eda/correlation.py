@@ -131,7 +131,11 @@ def variance_inflation(
             }
         )
 
-    corr = frame.corr(method="pearson", numeric_only=True).to_numpy()
+    # copy=True for the same reason as in preprocessing/selection.py: pandas 2.3+
+    # returns a read-only view, and `fill_diagonal` writes in place.
+    corr = frame.corr(method="pearson", numeric_only=True).to_numpy(
+        dtype=np.float64, copy=True
+    )
     corr = np.nan_to_num(corr, nan=0.0)
     np.fill_diagonal(corr, 1.0)
 

@@ -716,6 +716,58 @@ def test_correlation_filter_keeps_chain_information() -> None:
     assert len(filt.groups_) == 1  # one connected component, not two independent drops
 
 
+def test_correlation_filter_survives_read_only_frames(monkeypatch) -> None:
+    """pandas 2.3+ returns read-only arrays from .to_numpy(); fill_diagonal writes.
+
+    This combination raised "underlying array is read-only" on Python 3.11+ in CI while
+    passing on 3.9/3.10, purely because the newer interpreters resolved a newer pandas.
+    Forcing the read-only flag reproduces it on any version, so the fix cannot silently
+    regress on the machine of whoever happens to have an older pandas.
+    """
+    gen = np.random.default_rng(31)
+    base = gen.normal(size=300)
+    frame = pd.DataFrame(
+        {"a": base, "b": base + gen.normal(0, 0.001, 300), "c": gen.normal(size=300)}
+    )
+
+    real_to_numpy = pd.DataFrame.to_numpy
+
+    def read_only_to_numpy(self, *args, **kwargs):
+        out = real_to_numpy(self, *args, **kwargs)
+        if not kwargs.get("copy"):
+            out = out.view()
+            out.flags.writeable = False
+        return out
+
+    monkeypatch.setattr(pd.DataFrame, "to_numpy", read_only_to_numpy)
+
+    filt = CorrelationFilter(threshold=0.95).fit(frame, None, ctx(frame))
+    assert len(filt.to_drop_) == 1  # one of the correlated pair
+
+
+def test_variance_inflation_survives_read_only_frames(monkeypatch) -> None:
+    """The same read-only hazard in the VIF path."""
+    gen = np.random.default_rng(32)
+    a, b = gen.normal(size=300), gen.normal(size=300)
+    frame = pd.DataFrame({"a": a, "b": b, "c": a + b + gen.normal(0, 0.3, 300)})
+
+    real_to_numpy = pd.DataFrame.to_numpy
+
+    def read_only_to_numpy(self, *args, **kwargs):
+        out = real_to_numpy(self, *args, **kwargs)
+        if not kwargs.get("copy"):
+            out = out.view()
+            out.flags.writeable = False
+        return out
+
+    monkeypatch.setattr(pd.DataFrame, "to_numpy", read_only_to_numpy)
+
+    from edaprep.eda.correlation import variance_inflation
+
+    result = variance_inflation(frame, profile(frame))
+    assert result is not None and len(result) == 3
+
+
 def test_column_dropper_tolerates_absent_columns() -> None:
     frame = pd.DataFrame({"a": [1, 2, 3]})
     context = ctx(frame)
