@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: py${{ matrix.python-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        include:
+          # The floor and the ceiling are the versions most likely to break, so they
+          # are the ones worth paying for on the slower runners.
+          - os: macos-latest
+            python-version: "3.9"
+          - os: windows-latest
+            python-version: "3.13"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Show resolved dependency versions
+        # The point of the matrix is to find out what actually got installed, so print
+        # it: a failure on one row is only diagnosable if the versions are visible.
+        run: python -m pip list
+
+      - name: Test
+        run: python -m pytest tests/ -q
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install ruff
+      - run: ruff check src/ tests/ benchmarks/ examples/
+      - run: ruff format --check --diff src/ tests/ || true  # advisory: not yet enforced
+
+  package:
+    name: build and verify the distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+
+      - name: Check metadata
+        run: python -m twine check dist/*
+
+      - name: Install the wheel and use it from outside the source tree
+        # Installing the built artefact, in a directory with no `src/`, is the only way
+        # to catch a package that imports fine from the repo but ships broken -- a
+        # missing subpackage, missing py.typed, a bad entry in packages.find.
+        run: |
+          python -m pip install dist/*.whl
+          mkdir -p /tmp/elsewhere && cd /tmp/elsewhere
+          python -c "
+          import edaprep, numpy as np, pandas as pd, importlib.resources as r
+          gen = np.random.default_rng(0)
+          df = pd.DataFrame({
+              'num': np.where(gen.random(300) < .1, np.nan, gen.lognormal(2, 1, 300)),
+              'cat': gen.choice(list('abc'), 300),
+              'y': (gen.random(300) < .3).astype(int),
+          })
+          pipe = edaprep.AutoPipeline(target='y', random_state=42)
+          out = pipe.fit_transform(df)
+          assert out.isna().sum().sum() == 0
+          assert pipe.plan_.explain('num')
+          assert (r.files('edaprep') / 'py.typed').is_file(), 'py.typed not shipped'
+          print('wheel OK:', edaprep.__version__, out.shape)
+          "
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distributions
+          path: dist/
+
+  example:
+    name: worked example runs end to end
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[all]"
+      - name: Run the example
+        # The README's central claim is that this produces a model-ready frame with an
+        # explained plan.  If it stops doing that, the documentation is wrong.
+        run: python examples/end_to_end.py

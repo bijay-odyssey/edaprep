@@ -507,6 +507,43 @@ def test_sklearn_pipeline_interoperability() -> None:
     assert "scale__strategy" in model.get_params()
 
 
+def test_sklearn_tag_protocol_is_implemented() -> None:
+    """scikit-learn 1.6+ asks estimators for tags; 1.8 raises if they cannot answer.
+
+    Without ``__sklearn_tags__`` this warns on 1.6/1.7 and breaks outright on 1.8, so
+    the advertised sklearn interoperability would silently rot. Asserted here rather
+    than left to a deprecation warning nobody reads.
+    """
+    pytest.importorskip("sklearn", minversion="1.6")
+    from sklearn.utils import get_tags
+
+    tags = get_tags(MissingValueHandler())
+    assert tags.estimator_type == "transformer"
+    assert tags.input_tags.allow_nan
+    # `required` must track uses_target, or the two can drift apart.
+    assert get_tags(edaprep.TargetEncoder()).target_tags.required is True
+    assert get_tags(Scaler()).target_tags.required is False
+
+
+def test_sklearn_interop_emits_no_deprecation_warnings() -> None:
+    """The interop path must be clean, not merely working."""
+    sk_pipeline = pytest.importorskip("sklearn.pipeline")
+    pytest.importorskip("sklearn", minversion="1.6")
+    import warnings
+
+    from sklearn.linear_model import LogisticRegression
+
+    gen = np.random.default_rng(11)
+    X = pd.DataFrame({"a": gen.normal(size=120), "b": gen.normal(size=120)})
+    y = (gen.random(120) < 0.4).astype(int)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        sk_pipeline.Pipeline(
+            [("scale", Scaler()), ("clf", LogisticRegression(max_iter=200))]
+        ).fit(X, y)
+
+
 def test_public_api_surface() -> None:
     for name in edaprep.__all__:
         assert hasattr(edaprep, name), f"{name} is exported but missing"

@@ -1,0 +1,99 @@
+name: Publish to PyPI
+
+# Publishing is deliberately manual: it fires only when a GitHub Release is published,
+# never on a push. A PyPI version number can never be reused -- only yanked -- so this
+# must be a decision, not a side effect of merging.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Where to publish"
+        required: true
+        default: testpypi
+        type: choice
+        options: [testpypi, pypi]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          python -m twine check dist/*
+
+      - name: Verify the tag matches the packaged version
+        # A release tagged v0.2.0 that ships 0.1.0 is unfixable once uploaded, because
+        # the version cannot be re-uploaded. Cheaper to fail here.
+        if: github.event_name == 'release'
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(python -c "import re,pathlib; print(re.search(r'__version__ = \"([^\"]+)\"', pathlib.Path('src/edaprep/_version.py').read_text()).group(1))")
+          echo "tag=$TAG  packaged=$PKG"
+          test "$TAG" = "$PKG" || { echo "::error::tag $TAG does not match packaged version $PKG"; exit 1; }
+
+      - name: Smoke-test the built wheel
+        run: |
+          python -m pip install dist/*.whl
+          mkdir -p /tmp/elsewhere && cd /tmp/elsewhere
+          python -c "
+          import edaprep, numpy as np, pandas as pd
+          gen = np.random.default_rng(0)
+          df = pd.DataFrame({'x': gen.normal(size=200), 'y': (gen.random(200) < .3).astype(int)})
+          assert edaprep.AutoPipeline(target='y', random_state=0).fit_transform(df).shape[0] == 200
+          print('wheel OK:', edaprep.__version__)
+          "
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distributions
+          path: dist/
+
+  testpypi:
+    name: Publish to TestPyPI
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/edaprep
+    permissions:
+      id-token: write        # Trusted Publishing: OIDC instead of a stored API token
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: distributions
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  pypi:
+    name: Publish to PyPI
+    needs: build
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.target == 'pypi')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/edaprep
+    permissions:
+      id-token: write        # Trusted Publishing: no PYPI_API_TOKEN secret to leak
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: distributions
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

@@ -148,6 +148,37 @@ class Transformer(ABC):
         """Default: the input columns, unchanged.  Overridden by column-adding steps."""
         return list(self.feature_names_in_)
 
+    def __sklearn_tags__(self):
+        """scikit-learn's estimator-tag protocol (scikit-learn 1.6+).
+
+        scikit-learn calls this to discover what an estimator can handle.  Without it,
+        1.6 and 1.7 emit a DeprecationWarning and fall back to defaults, and 1.8 raises.
+        The sanctioned fix is to subclass ``BaseEstimator``, which would make
+        scikit-learn a hard dependency of the core package -- and it is deliberately an
+        optional one.  Implementing the protocol directly keeps interoperability without
+        the dependency.
+
+        scikit-learn is imported inside the method, not at module scope: nothing calls
+        this unless scikit-learn is already in the process.
+        """
+        from sklearn.utils import InputTags, Tags, TargetTags, TransformerTags
+
+        return Tags(
+            estimator_type="transformer",
+            # `required` says whether ``fit`` cannot work without ``y`` -- exactly what
+            # ``uses_target`` already declares, so the two cannot drift apart.
+            target_tags=TargetTags(required=self.uses_target),
+            transformer_tags=TransformerTags(),
+            input_tags=InputTags(
+                # These transformers take DataFrames and are built to cope with the
+                # things a real column contains.
+                two_d_array=True,
+                allow_nan=True,
+                string=True,
+                categorical=True,
+            ),
+        )
+
     @classmethod
     def _param_names(cls) -> List[str]:
         signature = inspect.signature(cls.__init__)

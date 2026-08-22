@@ -20,6 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering",
     "Typing :: Typed",
 ]
@@ -45,6 +46,8 @@ dev = [
 [project.urls]
 Documentation = "https://github.com/bijay-odyssey/edaprep#readme"
 Source = "https://github.com/bijay-odyssey/edaprep"
+Changelog = "https://github.com/bijay-odyssey/edaprep/blob/main/CHANGELOG.md"
+Issues = "https://github.com/bijay-odyssey/edaprep/issues"
 
 [tool.setuptools.dynamic]
 version = { attr = "edaprep._version.__version__" }
