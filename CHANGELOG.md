@@ -9,7 +9,7 @@ will be listed under **Changed** with a migration note.
 
 ## [0.1.0] — 2026-08-22
 
-First public release.
+First public release. Available on PyPI: `pip install edaprep`.
 
 ### Added
 

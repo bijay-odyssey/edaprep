@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/bijay-odyssey/edaprep/actions/workflows/ci.yml/badge.svg)](https://github.com/bijay-odyssey/edaprep/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://pypi.org/project/edaprep/)
+[![PyPI](https://img.shields.io/pypi/v/edaprep)](https://pypi.org/project/edaprep/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 Transparent, leakage-safe EDA and ML preprocessing, with an explainable planner.
@@ -46,34 +47,28 @@ customer_id:
 
 ## Why it exists
 
-It was built by mining common notebook workflows for the EDA and
-preprocessing workflow they have in common — a broad survey of notebook workflows.
-The findings are written up in [`docs/design-rationale.md`](docs/design-rationale.md), and
-they shaped every design decision:
+Tabular ML notebooks converge on nearly the same workflow regardless of domain — and
+they go wrong in the same places. [`docs/design-rationale.md`](docs/design-rationale.md)
+catalogues that workflow and names the failure modes; each one shaped a design decision
+here:
 
-- The dtype-based column split (`select_dtypes(include=['int64','float64'])`) appears
-  **39 times** and is the largest single source of error: it sends a zip code and a
-  temperature down the same path. `edaprep` infers a *semantic* type and reports its
-  confidence.
-- The IQR outlier fence is rewritten **12 times**, the z-score fence 6 times, with the
+- **The dtype-based column split** (`select_dtypes(include=['int64','float64'])`) is the
+  most-typed line in tabular data science and the largest single source of error: it
+  sends a zip code and a temperature down the same path, and drops a numeric column
+  stored as text entirely. `edaprep` infers a *semantic* type and reports its confidence.
+- **The IQR and z-score fences** get rewritten in project after project, with the
   multiplier drifting between 1.5 and 3.0 for no recorded reason. Both are now single
-  parameterised, named, reported operations.
-- **Leakage is easy to introduce.** One fits a `StandardScaler` on the full
-  frame, writes the result to CSV, and splits afterwards. `edaprep` makes that
-  structurally impossible rather than merely discouraged.
-- Two notebooks independently maintain *parallel preprocessing branches* for tree and
-  linear models. That insight became `model_family`, a first-class planning input.
+  parameterised, named, reported operations — and the index-alignment bug that silently
+  flags the wrong rows when a column has any `NaN` is fixed once, here.
+- **Leakage is easy to introduce and hard to notice.** Fitting a `StandardScaler` on the
+  full frame, writing the result to CSV, then splitting afterwards looks fine and
+  poisons every downstream experiment. `edaprep` makes it structurally impossible rather
+  than merely discouraged.
+- **Sophisticated pipelines end up routing, not sequencing** — branching on skewness for
+  numerics and on the consuming model for categoricals, usually buried in a
+  `make_preprocessor` closure. That became the planner, and `model_family`.
 
 ## Installation
-
-Not yet published to PyPI. Install from the tagged release:
-
-```bash
-pip install "git+https://github.com/bijay-odyssey/edaprep@v0.1.0"
-pip install "edaprep[visualization] @ git+https://github.com/bijay-odyssey/edaprep@v0.1.0"
-```
-
-Once it is on PyPI, this becomes:
 
 ```bash
 pip install edaprep                    # core: numpy, pandas, scipy
