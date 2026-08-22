@@ -66,6 +66,15 @@ they shaped every design decision:
 
 ## Installation
 
+Not yet published to PyPI. Install from the tagged release:
+
+```bash
+pip install "git+https://github.com/bijay-odyssey/edaprep@v0.1.0"
+pip install "edaprep[visualization] @ git+https://github.com/bijay-odyssey/edaprep@v0.1.0"
+```
+
+Once it is on PyPI, this becomes:
+
 ```bash
 pip install edaprep                    # core: numpy, pandas, scipy
 pip install "edaprep[visualization]"   # + matplotlib
@@ -73,7 +82,7 @@ pip install "edaprep[advanced]"        # + scikit-learn
 pip install "edaprep[all]"
 ```
 
-Python 3.9+.
+Python 3.9–3.13, tested on Linux, macOS and Windows.
 
 ---
 
