@@ -84,7 +84,16 @@ jobs:
   pypi:
     name: Publish to PyPI
     needs: build
-    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.target == 'pypi')
+    # Gated on a repository variable so that creating a GitHub Release does not fail
+    # before PyPI Trusted Publishing has been set up -- that setup needs a human logged
+    # in to pypi.org and cannot be done from CI.  Until the variable is set, releases
+    # still build, verify and attach artefacts; they just do not upload.
+    #
+    # To enable, once the trusted publisher exists on PyPI:
+    #   gh variable set PYPI_PUBLISH --body true
+    if: >-
+      (github.event_name == 'release' && vars.PYPI_PUBLISH == 'true')
+      || (github.event_name == 'workflow_dispatch' && inputs.target == 'pypi')
     runs-on: ubuntu-latest
     environment:
       name: pypi
