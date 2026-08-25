@@ -346,7 +346,6 @@ class Config:
     # --- reproducibility / performance ------------------------------------------
     random_state: Optional[int] = None
     sample_size: Optional[int] = None
-    n_jobs: int = 1
     verbose: bool = False
 
     thresholds: Thresholds = field(default_factory=Thresholds)
