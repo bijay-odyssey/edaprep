@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Ask a question or discuss a design decision
+    url: https://github.com/bijay-odyssey/edaprep/discussions
+    about: >
+      Open-ended questions, design disagreements and "is this the right approach"
+      belong in Discussions. Several decisions here are trade-offs rather than facts,
+      and the reasoning is written down precisely so it can be argued with.
+  - name: Read the design rationale first
+    url: https://github.com/bijay-odyssey/edaprep/blob/main/docs/design-rationale.md
+    about: Why the library is shaped the way it is, and which failure modes it targets.

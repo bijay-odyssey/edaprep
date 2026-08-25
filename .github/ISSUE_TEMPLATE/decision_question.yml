@@ -1,0 +1,35 @@
+name: Question about a decision
+description: edaprep did something to your data and you want to know why
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Every automatic decision is meant to explain itself. If you had to open an issue
+        to find out why something happened, that is arguably a documentation bug on our
+        side — so these are genuinely useful to receive.
+
+        Please try `pipe.explain("the_column")` first; it prints the rule that fired and
+        the measurement behind it.
+
+  - type: input
+    id: column
+    attributes:
+      label: Which column
+    validations:
+      required: true
+
+  - type: textarea
+    id: explain
+    attributes:
+      label: Output of pipe.explain("that_column")
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: expectation
+    attributes:
+      label: What you expected instead, and why
+    validations:
+      required: true

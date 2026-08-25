@@ -242,11 +242,20 @@ reporting.
 forecasting, deep learning, distributed execution. Extension points exist for each
 (`docs/extending.md`), and none is implemented in v1.
 
-## Development
+## Contributing
+
+Contributions are welcome, and [`CONTRIBUTING.md`](CONTRIBUTING.md) is written to make
+the first one straightforward: it explains the architecture in a page, lists the rules
+CI actually enforces, and points at issues scoped so that each one names the file to
+change and the test to write.
+
+Issues labelled [`good first issue`](https://github.com/bijay-odyssey/edaprep/labels/good%20first%20issue)
+are a deliberate starting set. Comment to claim one.
 
 ```bash
 pip install -e ".[dev]"
-pytest                       # 353 tests
+pytest                       # 358 tests, ~15s
+ruff check src/ tests/ benchmarks/ examples/
 python benchmarks/bench.py
 ```
 

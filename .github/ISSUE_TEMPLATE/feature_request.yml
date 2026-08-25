@@ -1,0 +1,63 @@
+name: Feature request
+description: Propose a capability the library does not have
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before writing: `CONTRIBUTING.md` lists things that are **deliberately** out of
+        scope — model training, resampling, transforming the target, dropping suspected
+        leaks automatically. Those will likely be declined, and the reasoning is in
+        `docs/design-rationale.md`.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: >
+        What are you unable to do today? Describe the situation rather than the
+        solution — the best feature requests here have led to a different (better)
+        design than the one originally proposed.
+      placeholder: >
+        I have ordered categoricals whose ordering I know, but I have to hand-write the
+        category list for every one of them.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you have in mind
+      description: An API sketch is welcome but not required.
+      render: python
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried instead
+      description: >
+        Config overrides, a custom transformer, a custom rule? Knowing what did not
+        work tells us whether this is a missing feature or a missing signpost.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of the library
+      options:
+        - Profiling / semantic typing
+        - Planner / rules
+        - Preprocessing transformers
+        - EDA / reporting
+        - Pipelines / sklearn interop
+        - Performance
+        - Documentation
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Would you like to implement it?
+      options:
+        - label: I would be willing to open a PR for this

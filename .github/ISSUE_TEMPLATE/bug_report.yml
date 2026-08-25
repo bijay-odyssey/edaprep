@@ -1,0 +1,76 @@
+name: Bug report
+description: Something behaves differently from what the documentation says
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. The most useful bug reports contain a snippet someone
+        else can paste and run — if you can produce one, everything else is a bonus.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you observe, and what did you expect instead?
+      placeholder: |
+        `AutoPipeline.transform` dropped the `region` column on the test set, but kept
+        it on train. I expected the same columns from both.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproducer
+      description: >
+        A snippet that shows the problem. Synthetic data is ideal — please do not paste
+        anything confidential. If the bug needs particular data *shape* (a zero-heavy
+        column, a high-cardinality category, an all-NaN column), say so; that is often
+        the whole cause.
+      render: python
+      placeholder: |
+        import edaprep, numpy as np, pandas as pd
+
+        gen = np.random.default_rng(0)
+        df = pd.DataFrame({
+            "x": gen.normal(size=200),
+            "y": (gen.random(200) < 0.3).astype(int),
+        })
+        pipe = edaprep.AutoPipeline(target="y", random_state=42).fit(df)
+        pipe.transform(df)   # <- raises here
+    validations:
+      required: true
+
+  - type: textarea
+    id: traceback
+    attributes:
+      label: Full traceback, if it raised
+      render: text
+
+  - type: textarea
+    id: plan
+    attributes:
+      label: The plan, if the problem is a decision rather than a crash
+      description: >
+        For "it did the wrong thing" reports, `print(pipe.plan_.summary())` and
+        `pipe.explain("the_column")` say what was decided and why. That usually
+        identifies the responsible rule immediately.
+      render: text
+
+  - type: input
+    id: version
+    attributes:
+      label: Versions
+      description: "Output of: `python -c \"import edaprep, numpy, pandas, sys; print(edaprep.__version__, numpy.__version__, pandas.__version__, sys.version)\"`"
+      placeholder: "0.1.0 2.2.6 2.3.3 3.12.7 ..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Linux, macOS, Windows, Other]
+    validations:
+      required: true
