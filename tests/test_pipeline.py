@@ -629,7 +629,10 @@ def test_cast_introduced_nan_is_imputed() -> None:
             "churn": gen.integers(0, 2, size=n),
         }
     )
-    assert frame["total_charges"].dtype == object
+    # Not a dtype equality check: pandas 3 stores text as StringDtype where pandas 2
+    # used object, and the precondition here is only that the column is non-numeric
+    # and that its blanks are still strings rather than NaN.
+    assert not pd.api.types.is_numeric_dtype(frame["total_charges"])
     assert frame["total_charges"].isna().sum() == 0, "blanks are strings, not NaN"
 
     pipe = AutoPipeline(target="churn", model_family="linear", random_state=0)
