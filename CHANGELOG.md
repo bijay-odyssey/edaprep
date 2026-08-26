@@ -7,6 +7,31 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html). While t
 version is `0.x`, the public API may change between minor versions; anything that does
 will be listed under **Changed** with a migration note.
 
+## [0.1.1] — 2026-08-26
+
+### Fixed
+
+- **Placeholder strings converted at the cast step are now imputed.** A column stored
+  as text purely because a handful of values are blank (or `?`, `N/A`, …) is measured
+  by the profiler as 0% missing, because at that point those values are still strings.
+  The cast then parses the column to a real dtype and turns them into `NaN`, after
+  which the imputation rule declined to act — it was keyed on the profile's
+  `n_missing`, which was zero. The result was `NaN` in output the library described as
+  ML-ready, which then raises in any estimator that does not accept them.
+
+  The rule now also consults the placeholder counts the profiler already records, and
+  the rationale names them rather than reporting "0.0% missing" while imputing anyway:
+
+  ```
+  + impute_median - 11 placeholder value(s) become NaN when the column is cast, so it
+                    needs imputation despite reporting 0.0% missing; median is robust
+                    to outliers
+  ```
+
+  Found while preparing a worked example on the Telco Customer Churn dataset, whose
+  `TotalCharges` column is exactly this shape. Columns that cast cleanly are
+  unaffected and still get no imputation step.
+
 ## [0.1.0] — 2026-08-22
 
 First public release. Available on PyPI: `pip install edaprep`.
@@ -78,4 +103,5 @@ First public release. Available on PyPI: `pip install edaprep`.
 - No resampling: class imbalance is measured and reported, because resampling belongs
   after the train/test split and with the model.
 
+[0.1.1]: https://github.com/bijay-odyssey/edaprep/releases/tag/v0.1.1
 [0.1.0]: https://github.com/bijay-odyssey/edaprep/releases/tag/v0.1.0
