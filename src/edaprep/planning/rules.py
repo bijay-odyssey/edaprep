@@ -318,16 +318,35 @@ def _rule_outliers(cp: ColumnProfile, ctx: RuleContext) -> Optional[Decision]:
 # ---------------------------------------------------------------------------------
 
 
+def _cast_missing(cp: ColumnProfile, ctx: RuleContext) -> int:
+    """Values that Stage.CAST will turn into NaN but the profile did not count.
+
+    ``n_missing`` is measured on the raw frame, where a placeholder is still the
+    string ``''`` or ``'N/A'`` rather than NaN.  A column can therefore report 0%
+    missing and still arrive at Stage.MISSING full of NaN, because the cast that
+    runs first replaced its placeholders.  Telco Customer Churn's ``TotalCharges``
+    is the canonical example: eleven blank strings make the column ``object``, the
+    cast parses it to ``float64``, and those eleven become NaN.
+
+    Sentinel counts come from the profiling sample, so this is a lower bound
+    whenever sampling was in effect.  It is used to decide *whether* to impute,
+    never to size the imputation, so a low count is safe.
+    """
+    return sum(ctx.profile.sentinels.get(cp.name, {}).values())
+
+
 def _rule_impute(cp: ColumnProfile, ctx: RuleContext) -> Optional[Decision]:
     if cp.is_target:
         return None
     user = _override(cp.name, ctx, "imputation")
     # A column with no missing values still gets a decision when the user asked for
-    # one, and when outlier handling upstream may introduce NaN.
+    # one, when outlier handling upstream may introduce NaN, and when the cast step
+    # will convert placeholder strings the profile counted as present.
     outlier_may_impute = (
         cp.semantic is SemanticType.NUMERIC and ctx.config.outlier_strategy == "impute"
     )
-    if cp.n_missing == 0 and user is None and not outlier_may_impute:
+    cast_missing = _cast_missing(cp, ctx)
+    if cp.n_missing == 0 and not cast_missing and user is None and not outlier_may_impute:
         return None
 
     if user is not None:
@@ -353,16 +372,31 @@ def _rule_impute(cp: ColumnProfile, ctx: RuleContext) -> Optional[Decision]:
             source=DEFAULT,
         )
 
+    # Quoting cp.missing_fraction alone would report "0.0% missing" on a column that
+    # is about to be full of NaN, so the phrase names whichever measurement applies.
+    if cast_missing and cp.n_missing:
+        found = (
+            f"{_pct(cp.missing_fraction)} missing, plus {cast_missing} placeholder "
+            f"value(s) that the cast converts to NaN"
+        )
+    elif cast_missing:
+        found = (
+            f"{cast_missing} placeholder value(s) become NaN when the column is cast, "
+            f"so it needs imputation despite reporting 0.0% missing"
+        )
+    else:
+        found = f"{_pct(cp.missing_fraction)} missing"
+
     if cp.semantic in (SemanticType.NUMERIC, SemanticType.ORDINAL):
         strategy = "median"
         reason = (
-            f"{_pct(cp.missing_fraction)} missing; median rather than mean because it "
+            f"{found}; median rather than mean because it "
             f"is unaffected by the skew ({cp.skew:.2f}) and by outliers"
             if np.isfinite(cp.skew)
-            else f"{_pct(cp.missing_fraction)} missing; median is robust to outliers"
+            else f"{found}; median is robust to outliers"
         )
     elif cp.semantic is SemanticType.DATETIME:
-        strategy, reason = "median", f"{_pct(cp.missing_fraction)} missing; median date"
+        strategy, reason = "median", f"{found}; median date"
     elif cp.n_unique > ctx.config.effective_high_cardinality:
         strategy = "missing_category"
         reason = (
@@ -373,7 +407,7 @@ def _rule_impute(cp: ColumnProfile, ctx: RuleContext) -> Optional[Decision]:
     else:
         strategy = "mode"
         reason = (
-            f"{_pct(cp.missing_fraction)} missing; most frequent category "
+            f"{found}; most frequent category "
             f"({cp.modal_value!r}, {_pct(cp.modal_frequency)} of rows)"
         )
 
@@ -393,7 +427,11 @@ def _rule_impute(cp: ColumnProfile, ctx: RuleContext) -> Optional[Decision]:
         cp.name,
         Stage.MISSING,
         f"impute_{strategy}",
-        params={"strategy": strategy, "missing_fraction": round(cp.missing_fraction, 4)},
+        params={
+            "strategy": strategy,
+            "missing_fraction": round(cp.missing_fraction, 4),
+            **({"cast_missing": cast_missing} if cast_missing else {}),
+        },
         rationale=reason,
         rule="impute_by_type",
         notes=notes,

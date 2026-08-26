@@ -604,3 +604,79 @@ def test_visualization_renders_without_showing() -> None:
     figure = viz.plot_profile(data, target="y")
     assert figure is not None
     plt.close("all")
+
+
+def test_cast_introduced_nan_is_imputed() -> None:
+    """Placeholder strings become NaN at Stage.CAST, so Stage.MISSING must plan for them.
+
+    Regression: the profile measures ``n_missing`` on the raw frame, where a blank
+    string is still a string, so the column reports 0% missing.  The cast then parses
+    it to float and those blanks become NaN.  The imputation rule used to decline on
+    ``n_missing == 0`` and leave NaN in supposedly ML-ready output, which crashes any
+    estimator that does not accept them.
+
+    Shape taken from Telco Customer Churn's ``TotalCharges`` column.
+    """
+    gen = np.random.default_rng(7)
+    n = 300
+    charges = [f"{v:.2f}" for v in gen.uniform(20, 8000, size=n)]
+    for i in range(0, 30, 3):          # 10 blanks, as strings
+        charges[i] = " "
+    frame = pd.DataFrame(
+        {
+            "total_charges": charges,          # object dtype purely because of the blanks
+            "tenure": gen.integers(1, 72, size=n),
+            "churn": gen.integers(0, 2, size=n),
+        }
+    )
+    assert frame["total_charges"].dtype == object
+    assert frame["total_charges"].isna().sum() == 0, "blanks are strings, not NaN"
+
+    pipe = AutoPipeline(target="churn", model_family="linear", random_state=0)
+    out = pipe.fit_transform(frame)
+
+    assert out.isna().sum().sum() == 0, "cast-introduced NaN reached the output"
+
+    decisions = [d for d in pipe.plan_.decisions if d.column == "total_charges"]
+    actions = {d.action for d in decisions}
+    assert "impute_median" in actions, f"no imputation planned; got {actions}"
+
+    impute = next(d for d in decisions if d.action == "impute_median")
+    assert impute.params.get("cast_missing") == 10
+    assert "placeholder" in impute.rationale
+    assert "0.0% missing" in impute.rationale, (
+        "the rationale must name the placeholder count rather than silently "
+        "reporting 0% missing while imputing anyway"
+    )
+
+
+def test_cast_introduced_nan_imputed_on_unseen_test_rows() -> None:
+    """The fitted statistic must carry to transform, not be recomputed per batch."""
+    gen = np.random.default_rng(11)
+    def make(n: int, blanks: int) -> pd.DataFrame:
+        vals = [f"{v:.2f}" for v in gen.uniform(10, 500, size=n)]
+        for i in range(blanks):
+            vals[i] = ""
+        return pd.DataFrame(
+            {"amount": vals, "y": gen.integers(0, 2, size=n)}
+        )
+
+    train, test = make(200, 8), make(80, 5)
+    pipe = AutoPipeline(target="y", model_family="linear", random_state=0).fit(train)
+
+    assert pipe.transform(train).isna().sum().sum() == 0
+    assert pipe.transform(test).isna().sum().sum() == 0
+
+
+def test_column_with_no_missing_and_no_placeholders_plans_no_imputation() -> None:
+    """The fix must not schedule imputation on every cast column."""
+    gen = np.random.default_rng(3)
+    frame = pd.DataFrame(
+        {
+            "clean_text_number": [f"{v:.1f}" for v in gen.uniform(1, 100, size=200)],
+            "y": gen.integers(0, 2, size=200),
+        }
+    )
+    pipe = AutoPipeline(target="y", model_family="linear", random_state=0).fit(frame)
+    actions = {d.action for d in pipe.plan_.decisions if d.column == "clean_text_number"}
+    assert not any(a.startswith("impute_") for a in actions), actions
