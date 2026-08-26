@@ -7,7 +7,30 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html). While t
 version is `0.x`, the public API may change between minor versions; anything that does
 will be listed under **Changed** with a migration note.
 
-## [0.1.1] — 2026-08-26
+## [0.2.0] — 2026-08-26
+
+### Removed
+
+- **`Config.n_jobs`.** It was accepted and never read by anything — a false promise to
+  anyone setting `n_jobs=-1` and expecting work to be parallelised. Removed by
+  [@qiaobochi040726-source](https://github.com/qiaobochi040726-source) in
+  [#11](https://github.com/bijay-odyssey/edaprep/pull/11), after benchmarking by
+  [@zbs-ops](https://github.com/zbs-ops) and a second independent run established that
+  threading the per-column loop in `profiling/statistics.py` helps at one frame shape
+  (20,000 × 300, 1.27×) and hurts at three others (1.15–1.38× slower). Exploiting that
+  would need a shape-dependent branch, which is the same thing §1 of
+  `docs/performance.md` records deleting once already.
+
+  *Migration:* delete the argument. It never did anything, so nothing else changes.
+  A `Config` saved by an earlier version still loads — see below.
+
+### Changed
+
+- **`Config.from_dict` no longer raises on settings it does not recognise.** It drops
+  them and warns instead. `Report.to_dict()` embeds the configuration, so a report
+  written before a setting was retired has to keep loading afterwards; `n_jobs` is the
+  first case. Dropping is warned about rather than silent, because an unrecognised key
+  is equally likely to be a misspelling.
 
 ### Fixed
 
@@ -103,5 +126,5 @@ First public release. Available on PyPI: `pip install edaprep`.
 - No resampling: class imbalance is measured and reported, because resampling belongs
   after the train/test split and with the model.
 
-[0.1.1]: https://github.com/bijay-odyssey/edaprep/releases/tag/v0.1.1
+[0.2.0]: https://github.com/bijay-odyssey/edaprep/releases/tag/v0.2.0
 [0.1.0]: https://github.com/bijay-odyssey/edaprep/releases/tag/v0.1.0

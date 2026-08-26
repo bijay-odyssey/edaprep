@@ -22,6 +22,7 @@ choice from the user's.
 from __future__ import annotations
 
 import dataclasses
+import warnings
 from dataclasses import dataclass, field
 from typing import Any, Dict, Mapping, Optional, Sequence, Union
 
@@ -473,9 +474,32 @@ class Config:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "Config":
+        """Rebuild a Config from :meth:`to_dict` output.
+
+        Settings the running version does not recognise are dropped with a warning
+        rather than raising.  ``Report.to_dict()`` embeds the configuration, so a
+        report written months ago must still load after a setting has been retired
+        -- ``n_jobs`` was removed in 0.2.0, and every report saved before then
+        carries it.  Dropping is reported, never silent: an unrecognised key is
+        equally likely to be a typo, and this is the only signal you would get.
+        """
         data = dict(data)
         thresholds = Thresholds(**data.pop("thresholds", {}))
         columns_raw = data.pop("columns", {})
+
+        known = {f.name for f in dataclasses.fields(cls)}
+        unknown = sorted(set(data) - known)
+        if unknown:
+            warnings.warn(
+                f"Config.from_dict ignoring {len(unknown)} unrecognised setting(s): "
+                f"{', '.join(repr(k) for k in unknown)}. They were either retired in "
+                f"a later version of edaprep or are misspelt; the rest of the "
+                f"configuration was applied unchanged.",
+                UserWarning,
+                stacklevel=2,
+            )
+            data = {k: v for k, v in data.items() if k in known}
+
         cfg = cls(thresholds=thresholds, **data)
         for name, kwargs in columns_raw.items():
             kwargs = dict(kwargs)
