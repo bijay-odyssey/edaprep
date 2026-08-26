@@ -194,18 +194,46 @@ def _rule_drop_high_missing(cp: ColumnProfile, ctx: RuleContext) -> Optional[Dec
     if not ctx.config.drop_high_missing or cp.is_target:
         return None
     threshold = ctx.thresholds.missing_drop_threshold
-    if cp.missing_fraction < threshold:
+    cast_missing = _cast_missing(cp, ctx)
+    effective = (cp.n_missing + cast_missing) / cp.n_rows if cp.n_rows else 0.0
+    if effective < threshold:
         return None
+    # Quoting cp.missing_fraction alone would report "0.0% missing" on a column that is
+    # about to be full of placeholders-turned-NaN, so the phrase names whichever
+    # measurement actually crossed the ceiling.
+    if cast_missing and cp.n_missing:
+        found = (
+            f"{_pct(cp.missing_fraction)} missing, plus {cast_missing} placeholder "
+            f"value(s) that the cast converts to NaN"
+        )
+    elif cast_missing:
+        found = (
+            f"{cast_missing} placeholder value(s) become NaN when the column is cast, "
+            f"leaving {_pct(effective)} missing"
+        )
+    else:
+        found = f"{_pct(cp.missing_fraction)} missing"
+    notes = ()
+    if cast_missing and ctx.profile.sampling.get("used"):
+        notes = (
+            f"sentinel counts come from the profiling sample "
+            f"({ctx.profile.sampling['n']:,} of {ctx.profile.sampling['of']:,} rows) "
+            f"and are a lower bound; the true post-cast missing fraction may be higher",
+        )
     return Decision(
         cp.name,
         Stage.DROP_COLUMNS,
         "drop",
-        params={"missing_fraction": round(cp.missing_fraction, 4)},
+        params={
+            "missing_fraction": round(cp.missing_fraction, 4),
+            **( {"cast_missing": cast_missing} if cast_missing else {} ),
+        },
         rationale=(
-            f"{_pct(cp.missing_fraction)} missing, above the {_pct(threshold)} ceiling; "
+            f"{found}, above the {_pct(threshold)} ceiling; "
             f"imputing would invent most of the column"
         ),
         rule="drop_high_missing",
+        notes=notes,
     )
 
 
@@ -234,15 +262,35 @@ def _rule_missing_indicator(cp: ColumnProfile, ctx: RuleContext) -> Optional[Dec
     if cp.is_target or not ctx.config.add_missing_indicators:
         return None
     threshold = ctx.thresholds.missing_indicator_threshold
-    if cp.missing_fraction < threshold or cp.missing_fraction >= 1.0:
+    cast_missing = _cast_missing(cp, ctx)
+    effective = (cp.n_missing + cast_missing) / cp.n_rows if cp.n_rows else 0.0
+    if effective < threshold or effective >= 1.0:
         return None
+    # Quoting cp.missing_fraction alone would report "0.0% missing" on a column that is
+    # about to be full of placeholders-turned-NaN, so the phrase names whichever
+    # measurement actually crossed the flag threshold.
+    if cast_missing and cp.n_missing:
+        found = (
+            f"{_pct(cp.missing_fraction)} missing, plus {cast_missing} placeholder "
+            f"value(s) that the cast converts to NaN"
+        )
+    elif cast_missing:
+        found = (
+            f"{cast_missing} placeholder value(s) become NaN when the column is cast, "
+            f"so it is missing despite reporting {_pct(cp.missing_fraction)} missing"
+        )
+    else:
+        found = f"{_pct(cp.missing_fraction)} missing"
     return Decision(
         cp.name,
         Stage.MISSING_FLAG,
         "add_missing_indicator",
-        params={"missing_fraction": round(cp.missing_fraction, 4)},
+        params={
+            "missing_fraction": round(cp.missing_fraction, 4),
+            **( {"cast_missing": cast_missing} if cast_missing else {} ),
+        },
         rationale=(
-            f"{_pct(cp.missing_fraction)} missing, above the {_pct(threshold)} flag "
+            f"{found}, above the {_pct(threshold)} flag "
             f"threshold; the flag is added before imputation, which would otherwise "
             f"destroy the signal"
         ),
