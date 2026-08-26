@@ -683,3 +683,39 @@ def test_column_with_no_missing_and_no_placeholders_plans_no_imputation() -> Non
     pipe = AutoPipeline(target="y", model_family="linear", random_state=0).fit(frame)
     actions = {d.action for d in pipe.plan_.decisions if d.column == "clean_text_number"}
     assert not any(a.startswith("impute_") for a in actions), actions
+
+
+def test_from_dict_tolerates_settings_this_version_removed() -> None:
+    """A Config saved before a setting was retired must still load.
+
+    ``Report.to_dict()`` embeds ``config.to_dict()``, so every report written before
+    ``n_jobs`` was removed in 0.2.0 carries it.  ``from_dict`` used to do ``cls(**data)``
+    with no filtering, which turned every one of those reports into a TypeError.
+    """
+    saved_by_an_older_version = {
+        "random_state": 42,
+        "sample_size": None,
+        "n_jobs": 1,          # retired in 0.2.0
+        "verbose": False,
+    }
+    with pytest.warns(UserWarning, match="n_jobs"):
+        config = Config.from_dict(saved_by_an_older_version)
+
+    assert config.random_state == 42, "the settings it did recognise must survive"
+    assert not hasattr(config, "n_jobs")
+
+
+def test_from_dict_round_trip_is_warning_free() -> None:
+    """The tolerance must not make a normal round-trip noisy."""
+    import warnings as _warnings
+
+    original = Config(random_state=7, verbose=True)
+    original.column("age").imputation = "median"
+
+    with _warnings.catch_warnings():
+        _warnings.simplefilter("error")          # any warning fails the test
+        restored = Config.from_dict(json.loads(json.dumps(original.to_dict())))
+
+    assert restored.random_state == 7
+    assert restored.verbose is True
+    assert restored.column("age").imputation == "median"
