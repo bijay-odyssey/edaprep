@@ -19,7 +19,7 @@ named, the reasoning is printed, and a user can override any of it per column.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Sequence
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -194,15 +194,27 @@ def _rule_drop_high_missing(cp: ColumnProfile, ctx: RuleContext) -> Optional[Dec
     if not ctx.config.drop_high_missing or cp.is_target:
         return None
     threshold = ctx.thresholds.missing_drop_threshold
-    if cp.missing_fraction < threshold:
+    cast_missing, missing_fraction = _post_cast_missing(cp, ctx)
+    if missing_fraction < threshold:
         return None
+    if cast_missing:
+        qualifier = "at least " if ctx.profile.sampling.get("used") else ""
+        found = (
+            f"{qualifier}{_pct(missing_fraction)} missing after {cast_missing} placeholder "
+            f"value(s) become NaN when the column is cast"
+        )
+    else:
+        found = f"{_pct(missing_fraction)} missing"
     return Decision(
         cp.name,
         Stage.DROP_COLUMNS,
         "drop",
-        params={"missing_fraction": round(cp.missing_fraction, 4)},
+        params={
+            "missing_fraction": round(missing_fraction, 4),
+            **({"cast_missing": cast_missing} if cast_missing else {}),
+        },
         rationale=(
-            f"{_pct(cp.missing_fraction)} missing, above the {_pct(threshold)} ceiling; "
+            f"{found}, above the {_pct(threshold)} ceiling; "
             f"imputing would invent most of the column"
         ),
         rule="drop_high_missing",
@@ -234,15 +246,27 @@ def _rule_missing_indicator(cp: ColumnProfile, ctx: RuleContext) -> Optional[Dec
     if cp.is_target or not ctx.config.add_missing_indicators:
         return None
     threshold = ctx.thresholds.missing_indicator_threshold
-    if cp.missing_fraction < threshold or cp.missing_fraction >= 1.0:
+    cast_missing, missing_fraction = _post_cast_missing(cp, ctx)
+    if missing_fraction < threshold or missing_fraction >= 1.0:
         return None
+    if cast_missing:
+        qualifier = "at least " if ctx.profile.sampling.get("used") else ""
+        found = (
+            f"{qualifier}{_pct(missing_fraction)} missing after {cast_missing} placeholder "
+            f"value(s) become NaN when the column is cast"
+        )
+    else:
+        found = f"{_pct(missing_fraction)} missing"
     return Decision(
         cp.name,
         Stage.MISSING_FLAG,
         "add_missing_indicator",
-        params={"missing_fraction": round(cp.missing_fraction, 4)},
+        params={
+            "missing_fraction": round(missing_fraction, 4),
+            **({"cast_missing": cast_missing} if cast_missing else {}),
+        },
         rationale=(
-            f"{_pct(cp.missing_fraction)} missing, above the {_pct(threshold)} flag "
+            f"{found}, above the {_pct(threshold)} flag "
             f"threshold; the flag is added before imputation, which would otherwise "
             f"destroy the signal"
         ),
@@ -333,6 +357,20 @@ def _cast_missing(cp: ColumnProfile, ctx: RuleContext) -> int:
     never to size the imputation, so a low count is safe.
     """
     return sum(ctx.profile.sentinels.get(cp.name, {}).values())
+
+
+def _post_cast_missing(cp: ColumnProfile, ctx: RuleContext) -> Tuple[int, float]:
+    """Count and fraction of raw missing cells plus placeholders cast to NaN.
+
+    ``ColumnProfile.n_missing`` and ``n_rows`` are measured on the full frame.  Sentinel
+    detection may use a sample, making ``cast_missing`` a lower bound, but its count is
+    still divided by the full-row denominator.  The resulting fraction is exact when
+    unsampled and a safe lower bound otherwise: it may miss a threshold crossing, but
+    cannot create a false one.
+    """
+    cast_missing = _cast_missing(cp, ctx)
+    missing_fraction = (cp.n_missing + cast_missing) / cp.n_rows if cp.n_rows else 0.0
+    return cast_missing, missing_fraction
 
 
 def _rule_impute(cp: ColumnProfile, ctx: RuleContext) -> Optional[Decision]:

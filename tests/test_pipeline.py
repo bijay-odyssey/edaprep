@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 
 import edaprep
-from edaprep import AutoPipeline, Config, Pipeline
+from edaprep import AutoPipeline, Config, Pipeline, Thresholds
 from edaprep.exceptions import ConfigurationError, NotFittedError
 from edaprep.planning import Plan, Planner
 from edaprep.planning.rules import Rule, default_rules
@@ -651,6 +651,95 @@ def test_cast_introduced_nan_is_imputed() -> None:
         "the rationale must name the placeholder count rather than silently "
         "reporting 0% missing while imputing anyway"
     )
+
+
+def test_cast_introduced_nan_gets_missing_indicator() -> None:
+    """Cast-introduced gaps above the flag threshold retain their missingness signal."""
+    gen = np.random.default_rng(17)
+    n = 300
+    charges = [f"{value:.2f}" for value in gen.uniform(20, 8000, size=n)]
+    for index in range(24):  # 8%, above the 5% flag threshold
+        charges[index] = " "
+    frame = pd.DataFrame(
+        {
+            "total_charges": charges,
+            "tenure": gen.integers(1, 72, size=n),
+            "churn": gen.integers(0, 2, size=n),
+        }
+    )
+    assert frame["total_charges"].isna().sum() == 0, "blanks are strings, not NaN"
+
+    pipe = AutoPipeline(target="churn", model_family="linear", random_state=0)
+    out = pipe.fit_transform(frame)
+
+    decisions = [d for d in pipe.plan_.decisions if d.column == "total_charges"]
+    indicator = next(d for d in decisions if d.action == "add_missing_indicator")
+    assert indicator.params["cast_missing"] == 24
+    assert indicator.params["missing_fraction"] == pytest.approx(0.08)
+    assert "placeholder" in indicator.rationale
+    assert "8.0% missing" in indicator.rationale
+    assert "total_charges__was_missing" in out.columns
+    assert out["total_charges__was_missing"].sum() == 24
+    assert out["total_charges"].isna().sum() == 0
+
+
+def test_cast_introduced_nan_high_missing_is_dropped() -> None:
+    """A conservative post-cast lower bound can safely trigger the drop threshold."""
+    gen = np.random.default_rng(19)
+    n = 300
+    charges = [f"{value:.2f}" for value in gen.uniform(20, 8000, size=n)]
+    for index in range(210):  # 70%, above the 60% drop threshold
+        charges[index] = " "
+    frame = pd.DataFrame(
+        {
+            "total_charges": charges,
+            "tenure": gen.integers(1, 72, size=n),
+            "churn": gen.integers(0, 2, size=n),
+        }
+    )
+    assert frame["total_charges"].isna().sum() == 0, "blanks are strings, not NaN"
+
+    pipe = AutoPipeline(target="churn", model_family="linear", random_state=0)
+    out = pipe.fit_transform(frame)
+
+    decisions = [d for d in pipe.plan_.decisions if d.column == "total_charges"]
+    drop = next(d for d in decisions if d.action == "drop")
+    assert drop.params["cast_missing"] == 210
+    assert drop.params["missing_fraction"] == pytest.approx(0.70)
+    assert "placeholder" in drop.rationale
+    assert "70.0% missing" in drop.rationale
+    assert "total_charges" not in out.columns
+
+
+def test_sampled_sentinel_count_uses_full_row_denominator() -> None:
+    """An over-representative sentinel sample must not create a false drop."""
+    n = 100
+    frame = pd.DataFrame(
+        {
+            "total_charges": [f"{value:.2f}" for value in np.linspace(20, 8000, n)],
+            "churn": np.resize([0, 1], n),
+        }
+    )
+    config = Config(
+        random_state=0,
+        sample_size=20,
+        thresholds=Thresholds(sampling_row_threshold=10, sample_size=20),
+    )
+    # Make 75% of the deterministic sample placeholders but only 15% of the full frame.
+    sampled_indexes = frame.sample(n=20, random_state=0).index
+    frame.loc[sampled_indexes[:15], "total_charges"] = " "
+
+    dataset_profile = profile(frame, target="churn", config=config)
+    plan = Planner(config).plan(dataset_profile)
+    decisions = [d for d in plan.decisions if d.column == "total_charges"]
+
+    assert dataset_profile.sampling["used"]
+    assert sum(dataset_profile.sentinels["total_charges"].values()) == 15
+    assert not any(d.action == "drop" for d in decisions)
+    indicator = next(d for d in decisions if d.action == "add_missing_indicator")
+    assert indicator.params["cast_missing"] == 15
+    assert indicator.params["missing_fraction"] == pytest.approx(0.15)
+    assert indicator.rationale.startswith("at least 15.0% missing")
 
 
 def test_cast_introduced_nan_imputed_on_unseen_test_rows() -> None:
