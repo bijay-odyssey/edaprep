@@ -685,6 +685,124 @@ def test_column_with_no_missing_and_no_placeholders_plans_no_imputation() -> Non
     assert not any(a.startswith("impute_") for a in actions), actions
 
 
+def test_placeholder_strings_get_a_missing_indicator() -> None:
+    """Placeholder strings become NaN at Stage.CAST, so MISSING_FLAG must plan a flag.
+
+    Regression: the profile measures ``n_missing`` on the raw frame, where a blank
+    string is still a string, so an 8%-blank column reports 0% missing and earned no
+    indicator.  The cast then turns those blanks into NaN, after which imputation
+    would destroy the missingness signal the indicator exists to preserve.
+    """
+    gen = np.random.default_rng(21)
+    n = 300
+    amounts = [f"{v:.2f}" for v in gen.uniform(20, 8000, size=n)]
+    for i in range(0, 72, 3):          # 24 blanks (8%), as strings
+        amounts[i] = ""
+    frame = pd.DataFrame(
+        {
+            "amount": amounts,          # object dtype purely because of the blanks
+            "y": gen.integers(0, 2, size=n),
+        }
+    )
+    assert not pd.api.types.is_numeric_dtype(frame["amount"])
+    assert frame["amount"].isna().sum() == 0, "blanks are strings, not NaN"
+
+    pipe = AutoPipeline(target="y", model_family="linear", random_state=0)
+    out = pipe.fit_transform(frame)
+
+    decisions = [d for d in pipe.plan_.decisions if d.column == "amount"]
+    actions = {d.action for d in decisions}
+    assert "add_missing_indicator" in actions, f"no indicator planned; got {actions}"
+
+    indicator = next(d for d in decisions if d.action == "add_missing_indicator")
+    assert indicator.params.get("cast_missing") == 24
+    assert "placeholder" in indicator.rationale
+
+    assert "amount__was_missing" in out.columns
+    assert int(out["amount__was_missing"].sum()) == 24, (
+        "the indicator must flag exactly the placeholder rows, not the valid ones"
+    )
+
+
+def test_placeholder_heavy_column_is_dropped_rather_than_imputed() -> None:
+    """A ~70%-placeholder column is dropped, not imputed from the 30% that remain.
+
+    Regression: the profile measures ``n_missing`` on the raw frame, where 210 blanks
+    are still strings, so the column reports 0% missing and survived the 60% drop
+    ceiling.  The cast then turns those blanks into NaN, after which the imputation
+    rule would invent 70% of the column from the 30% that remain -- exactly what the
+    drop-rule ceiling exists to prevent.
+    """
+    gen = np.random.default_rng(23)
+    n = 300
+    amounts = [f"{v:.2f}" for v in gen.uniform(20, 8000, size=n)]
+    for i in range(210):               # 210 blanks (70%), as strings
+        amounts[i] = ""
+    # Two distinct non-null values must survive, otherwise drop_constant could claim
+    # the column first and this test would be measuring the wrong rule.
+    assert len({v for v in amounts if v != ""}) >= 2, "test must not trip drop_constant"
+    frame = pd.DataFrame(
+        {
+            "amount": amounts,
+            "y": gen.integers(0, 2, size=n),
+        }
+    )
+    assert frame["amount"].isna().sum() == 0, "blanks are strings, not NaN"
+
+    pipe = AutoPipeline(target="y", model_family="linear", random_state=0)
+    out = pipe.fit_transform(frame)
+
+    assert "amount" in pipe.plan_.dropped_columns, (
+        "the column must be dropped now that its placeholders count toward missing"
+    )
+    assert "amount" not in out.columns
+    actions = {d.action for d in pipe.plan_.decisions if d.column == "amount"}
+    assert not any(a.startswith("impute_") for a in actions), actions
+
+
+def test_placeholder_heavy_column_with_fewer_than_60pct_is_not_dropped() -> None:
+    """Regression: a ~30%-placeholder column must not be dropped by the new logic.
+
+    The fix must not over-apply: only columns whose post-cast missing fraction clears
+    the 60% drop ceiling may be removed; a 30% column is still imputed, exactly as a
+    30%-real-NaN column was before the fix.
+    """
+    gen = np.random.default_rng(31)
+    n = 300
+    amounts = [f"{v:.2f}" for v in gen.uniform(20, 8000, size=n)]
+    for i in range(90):                # 90 blanks (30%), as strings
+        amounts[i] = ""
+    frame = pd.DataFrame(
+        {
+            "amount": amounts,
+            "y": gen.integers(0, 2, size=n),
+        }
+    )
+    pipe = AutoPipeline(target="y", model_family="linear", random_state=0)
+    out = pipe.fit_transform(frame)
+
+    assert "amount" not in pipe.plan_.dropped_columns
+    assert "amount" in out.columns
+
+
+def test_column_with_real_nan_still_gets_a_missing_indicator() -> None:
+    """Non-placeholder behaviour is unchanged: real NaN still earn a flag."""
+    gen = np.random.default_rng(29)
+    n = 300
+    values = gen.uniform(20, 8000, size=n).astype(float)
+    values[gen.choice(n, 24, replace=False)] = np.nan   # 8% real missing
+    frame = pd.DataFrame(
+        {"amount": values, "y": gen.integers(0, 2, size=n)}
+    )
+    pipe = AutoPipeline(target="y", model_family="linear", random_state=0)
+    out = pipe.fit_transform(frame)
+
+    actions = {d.action for d in pipe.plan_.decisions if d.column == "amount"}
+    assert "add_missing_indicator" in actions, actions
+    assert "amount__was_missing" in out.columns
+    assert int(out["amount__was_missing"].sum()) == 24
+
+
 def test_from_dict_tolerates_settings_this_version_removed() -> None:
     """A Config saved before a setting was retired must still load.
 
