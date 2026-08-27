@@ -49,6 +49,18 @@ jobs:
       - name: Test
         run: python -m pytest tests/ -q
 
+      - name: Test with coverage (fastest row only)
+        # Coverage on all seven rows is wasted minutes; report once per run.
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        run: python -m pytest tests/ -q --cov=edaprep --cov-report=xml --cov-report=term
+
+      - name: Upload coverage to Codecov
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+          fail_ci_if_error: false
+
   lint:
     name: lint
     runs-on: ubuntu-latest
