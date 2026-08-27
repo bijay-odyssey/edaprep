@@ -250,14 +250,34 @@ CI actually enforces, and points at issues scoped so that each one names the fil
 change and the test to write.
 
 Issues labelled [`good first issue`](https://github.com/bijay-odyssey/edaprep/labels/good%20first%20issue)
-are a deliberate starting set. Comment to claim one.
+are a deliberate starting set. **Comment on one to claim it before you start** — two
+people once fixed the same issue eight hours apart, and one of them had to be turned
+away.
 
 ```bash
 pip install -e ".[dev]"
-pytest                       # 358 tests, ~15s
+pytest                       # 367 tests, ~15s
 ruff check src/ tests/ benchmarks/ examples/
 python benchmarks/bench.py
 ```
+
+## Contributors
+
+This library argues that a decision is worth little without the reasoning behind it,
+so it would be odd to credit only the diffs. Measurement, review and design that
+changed what shipped are listed here alongside the commits.
+
+| | |
+|---|---|
+| [@qiaobochi040726-source](https://github.com/qiaobochi040726-source) | Removed `Config.n_jobs`, a setting the library accepted and never read ([#11](https://github.com/bijay-odyssey/edaprep/pull/11)) |
+| [@zbs-ops](https://github.com/zbs-ops) | Benchmarked parallelising the per-column profiling loop, which is what decided [#9](https://github.com/bijay-odyssey/edaprep/issues/9) — no commit, and the reason the parameter went |
+| [@Jeferson681](https://github.com/Jeferson681) | Made the missing-indicator and high-missing rules see gaps introduced at the cast step ([#16](https://github.com/bijay-odyssey/edaprep/pull/16)) |
+| [@luziyi123448-gif](https://github.com/luziyi123448-gif) | Independent fix for the same issue whose design was the better one; it survives as [#18](https://github.com/bijay-odyssey/edaprep/issues/18) ([#17](https://github.com/bijay-odyssey/edaprep/pull/17)) |
+
+[GitHub's contributors graph](https://github.com/bijay-odyssey/edaprep/graphs/contributors)
+counts commits on `main`, so it cannot show a benchmark that settled an argument or a
+review that caught a bug. This table can. If you contributed something that changed the
+library and you are not on it, that is an oversight worth an issue — please open one.
 
 ## Licence
 
