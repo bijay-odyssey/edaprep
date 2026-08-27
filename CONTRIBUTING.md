@@ -5,7 +5,16 @@ Thanks for looking. This document tells you how the project is put together, wha
 
 **New here?** Issues labelled [`good first issue`](https://github.com/bijay-odyssey/edaprep/labels/good%20first%20issue)
 are scoped to be self-contained: each one names the file to change and the test to
-write. Comment on one to claim it — no need to ask permission first.
+write.
+
+**Comment on the issue to claim it before you start, and check nobody else already
+has.** No need to ask permission — claiming is not a request, it is a heads-up to the
+next person. This matters: two contributors once fixed the same issue eight hours
+apart, both patches were good, and one had to be turned away. That is a waste of
+somebody's evening and it is avoidable with one comment.
+
+If an issue is claimed but the claim looks stale, say so in the thread rather than
+opening a competing PR — the maintainer can reassign it.
 
 ---
 
