@@ -1,0 +1,16 @@
+# Commits that changed formatting only, never behaviour.
+#
+# git blame skips these with:
+#     git blame --ignore-revs-file .git-blame-ignore-revs <file>
+#
+# or permanently, once per clone:
+#     git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# GitHub's blame view honours this file automatically.
+#
+# Only add a commit here if it is provably behaviour-preserving. For the one
+# below that meant parsing every changed .py file before and after and comparing
+# the ASTs: 33 of 33 identical.
+
+# Enforce ruff format in CI (#25) -- formatted 34 files, no semantic change.
+4b6bedb17c1fdc504a1d301f887536d47f034829
