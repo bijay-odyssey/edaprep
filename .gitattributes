@@ -1,0 +1,31 @@
+# Normalise line endings on the way into the repository.
+#
+# Without this, a contributor whose editor writes CRLF produces a diff in which
+# every line of every file they touched appears changed.  It happened in #21: a
+# thirteen-line change arrived as +419/-406 and buried the actual edit.
+#
+# `text=auto` stores everything with LF in git and checks it out native, so a
+# Windows contributor still gets CRLF in their working tree and commits LF.
+
+* text=auto
+
+# Files that must keep LF even on Windows checkouts, because something other
+# than git reads them: shell scripts run by CI, and anything a container mounts.
+*.sh        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+
+# Python, docs and config: normalised, native on checkout.
+*.py        text
+*.md        text
+*.toml      text
+*.cfg       text
+*.txt       text
+*.json      text
+
+# Never touched.
+*.png       binary
+*.jpg       binary
+*.ico       binary
+*.parquet   binary
+*.pyc       binary
