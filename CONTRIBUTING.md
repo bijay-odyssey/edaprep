@@ -166,6 +166,22 @@ pytest -k "outlier"                     # by keyword
 
 ---
 
+## Third-party services
+
+The answer is usually no, and the bar is: **what happens when it fails?**
+
+Coverage reporting is the worked example (#5, #21). `codecov-action` needed a token
+the repo did not have and failed *silently* — CI stayed green, the badge would have
+read `unknown` indefinitely, and nobody would have been told. That is the same
+accepted-and-never-read shape as `Config.n_jobs`, which #11 removed.
+
+Coverage now goes to the GitHub job summary via `coverage report --format=markdown`,
+which is built into coverage.py. No token, no account, nothing to break, and it
+sorts worst-first so the output is worth reading rather than a single number.
+
+If you want to add a service, say in the PR what the failure mode is and how anyone
+would notice. "It silently stops working and CI still passes" is a rejection.
+
 ## Performance claims need a benchmark
 
 `docs/performance.md` §5 sets the method: minimum of N runs, candidates interleaved,
