@@ -79,6 +79,8 @@ pip install "edaprep[all]"
 
 Python 3.9–3.13, tested on Linux, macOS and Windows.
 
+Would rather try it than install it? There is a [runnable notebook on Kaggle](https://www.kaggle.com/code/bijaybeezoe/every-preprocessing-decision-with-its-reason) that needs no setup — it measures two preprocessing leaks on Telco Churn, one worth `+0.000001` and one scoring a perfect `1.00000` AUC on pure noise, then shows what this library does about them.
+
 ---
 
 ## What it does
@@ -222,12 +224,13 @@ looked promising was slower than pandas.
 
 | | |
 |---|---|
-| [Workflow mining](docs/design-rationale.md) | what 13 repositories revealed, and the 9 defects found |
+| [Design rationale](docs/design-rationale.md) | the workflow tabular notebooks converge on, where it reliably goes wrong, and how each design decision follows |
 | [Architecture](docs/architecture.md) | package design, the planner, execution model |
 | [User guide](docs/guide.md) | installation to production, with the train/test workflow |
 | [Performance](docs/performance.md) | benchmarks, method, and what optimisation actually changed |
 | [Extending](docs/extending.md) | custom transformers, rules and backends |
 | [Example](examples/end_to_end.py) | raw dataset to ML-ready, end to end |
+| [Runnable notebook](https://www.kaggle.com/code/bijaybeezoe/every-preprocessing-decision-with-its-reason) | Kaggle, no install: the `select_dtypes` failure and two leaks, measured on Telco Churn |
 
 ---
 
