@@ -227,8 +227,7 @@ class Transformer(ABC):
     ) -> FitContext:
         if not isinstance(X, pd.DataFrame):
             raise TypeError(
-                f"{type(self).__name__}.fit expects a pandas DataFrame, got "
-                f"{type(X).__name__}."
+                f"{type(self).__name__}.fit expects a pandas DataFrame, got {type(X).__name__}."
             )
         if self.uses_target and y is None:
             raise LeakageError.target_required(type(self).__name__)

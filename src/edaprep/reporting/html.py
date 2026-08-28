@@ -99,10 +99,7 @@ def render_html(report: "Report") -> str:
 
     if report.plan is not None and report.plan.decisions:
         add("<h2>Decisions</h2><div class='scroll'><table>")
-        add(
-            "<tr><th>column</th><th>stage</th><th>action</th>"
-            "<th>why</th><th>source</th></tr>"
-        )
+        add("<tr><th>column</th><th>stage</th><th>action</th><th>why</th><th>source</th></tr>")
         for d in sorted(report.plan.decisions, key=lambda d: (d.column, d.stage.order)):
             source = (
                 "<span class='override'>user override</span>"

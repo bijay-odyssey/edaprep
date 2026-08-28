@@ -169,9 +169,7 @@ class Plan:
     @property
     def decisions(self) -> List[Decision]:
         """Every decision, including the ones that resolved to doing nothing."""
-        return [d for step in self.steps for d in step.decisions] + list(
-            self.noop_decisions
-        )
+        return [d for step in self.steps for d in step.decisions] + list(self.noop_decisions)
 
     def for_column(self, column: str) -> List[Decision]:
         """Every decision affecting ``column``, in stage order."""
@@ -199,9 +197,7 @@ class Plan:
 
     @property
     def uses_target(self) -> bool:
-        return any(
-            d.action in ("encode_target",) for d in self.decisions
-        )
+        return any(d.action in ("encode_target",) for d in self.decisions)
 
     # -- editing --------------------------------------------------------------------
 
@@ -252,9 +248,7 @@ class Plan:
     def from_dict(cls, data: Dict[str, Any]) -> "Plan":
         return cls(
             steps=tuple(PlannedStep.from_dict(s) for s in data.get("steps", ())),
-            noop_decisions=tuple(
-                Decision.from_dict(d) for d in data.get("noop_decisions", ())
-            ),
+            noop_decisions=tuple(Decision.from_dict(d) for d in data.get("noop_decisions", ())),
             target=data.get("target"),
             model_family=data.get("model_family"),
             dropped_columns=dict(data.get("dropped_columns", {})),

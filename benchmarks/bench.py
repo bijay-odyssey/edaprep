@@ -159,6 +159,7 @@ def bench_profiling(rows: int, repeat: int) -> List[Result]:
     frame = make_frame(rows)
 
     seconds, peak = measure(lambda: profile(frame, target="target"), repeat)
+
     # The nearest hand-written equivalent: the statistics an EDA notebook actually
     # computes, column by column.
     def baseline() -> Dict[str, object]:
@@ -195,9 +196,7 @@ def bench_profiling(rows: int, repeat: int) -> List[Result]:
         lambda: profile(frame, target="target", compute_moments=False, check_quality=False),
         repeat,
     )
-    results.append(
-        Result("profile(quick)", "profiling", seconds, peak, rows, frame.shape[1])
-    )
+    results.append(Result("profile(quick)", "profiling", seconds, peak, rows, frame.shape[1]))
     return results
 
 
@@ -447,9 +446,7 @@ def bench_pipelines(rows: int, repeat: int) -> List[Result]:
                                     ("impute", SimpleImputer(strategy="most_frequent")),
                                     (
                                         "encode",
-                                        SkOneHot(
-                                            handle_unknown="ignore", sparse_output=False
-                                        ),
+                                        SkOneHot(handle_unknown="ignore", sparse_output=False),
                                     ),
                                 ]
                             ),

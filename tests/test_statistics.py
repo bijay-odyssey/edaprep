@@ -70,9 +70,7 @@ def test_scalar_helpers_match_scipy() -> None:
     gen = np.random.default_rng(1)
     values = gen.lognormal(0, 1, 400)
     assert skewness(values) == pytest.approx(scipy_stats.skew(values, bias=False), rel=1e-9)
-    assert kurtosis(values) == pytest.approx(
-        scipy_stats.kurtosis(values, bias=False), rel=1e-9
-    )
+    assert kurtosis(values) == pytest.approx(scipy_stats.kurtosis(values, bias=False), rel=1e-9)
     assert median_abs_deviation(values) == pytest.approx(
         scipy_stats.median_abs_deviation(values, scale=1.0), rel=1e-12
     )

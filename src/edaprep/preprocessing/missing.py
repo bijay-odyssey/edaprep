@@ -140,9 +140,7 @@ class MissingValueHandler(Transformer, ColumnTransformerMixin):
                 if strategy == "constant":
                     if self.fill_value is None:
                         override = context.config.get_column(column)
-                        value = (
-                            override.imputation_fill_value if override is not None else None
-                        )
+                        value = override.imputation_fill_value if override is not None else None
                         if value is None:
                             raise ConfigurationError(
                                 f"strategy='constant' for column {column!r} needs a fill "
@@ -179,9 +177,7 @@ class MissingValueHandler(Transformer, ColumnTransformerMixin):
                 "strategies": dict(self.strategies_),
             }
 
-    def _learn(
-        self, series: pd.Series, strategy: str, column: str, context: FitContext
-    ) -> Any:
+    def _learn(self, series: pd.Series, strategy: str, column: str, context: FitContext) -> Any:
         clean = series.dropna()
         if clean.empty:
             context.journal.warn(
@@ -358,6 +354,4 @@ class MissingIndicator(Transformer, ColumnTransformerMixin):
         return self._rebuild(X, {}, added)
 
     def _compute_feature_names_out(self) -> List[str]:
-        return list(self.feature_names_in_) + [
-            self.indicator_names_[c] for c in self.columns_
-        ]
+        return list(self.feature_names_in_) + [self.indicator_names_[c] for c in self.columns_]

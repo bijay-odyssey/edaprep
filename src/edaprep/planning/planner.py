@@ -92,9 +92,7 @@ class Planner:
         # DROP_COLUMNS first: a dropped column takes no further part in planning, which
         # keeps the plan free of steps that operate on columns that will not exist.
         for name in feature_columns:
-            decision = self.rules.decide(
-                Stage.DROP_COLUMNS, profile.columns[name], context
-            )
+            decision = self.rules.decide(Stage.DROP_COLUMNS, profile.columns[name], context)
             if decision is not None and decision.action == "drop":
                 dropped[name] = decision.rationale
                 decisions_by_stage.setdefault(Stage.DROP_COLUMNS, []).append(decision)
@@ -259,9 +257,7 @@ class Planner:
             columns = ()
 
         if stage is Stage.OUTLIERS:
-            params["per_column_method"] = {
-                d.column: d.params.get("method") for d in decisions
-            }
+            params["per_column_method"] = {d.column: d.params.get("method") for d in decisions}
             params["per_column_strategy"] = {
                 d.column: d.params.get("strategy") for d in decisions
             }
@@ -277,9 +273,7 @@ class Planner:
             params["threshold"] = decisions[0].params.get("threshold")
         elif stage is Stage.DATETIME:
             explicit = {
-                d.column: d.params["features"]
-                for d in decisions
-                if d.params.get("features")
+                d.column: d.params["features"] for d in decisions if d.params.get("features")
             }
             if explicit:
                 params["per_column_features"] = explicit

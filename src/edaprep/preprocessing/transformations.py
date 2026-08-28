@@ -207,9 +207,7 @@ class DistributionTransformer(Transformer, ColumnTransformerMixin):
                 column, method, "the column is constant in the training data"
             )
 
-    def _learn(
-        self, column: str, method: str, finite: np.ndarray, context: FitContext
-    ) -> None:
+    def _learn(self, column: str, method: str, finite: np.ndarray, context: FitContext) -> None:
         if method in ("log", "log1p", "sqrt"):
             self.params_[column] = {}
             return

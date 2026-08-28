@@ -30,9 +30,7 @@ from ..types import NUMERIC_LIKE, SemanticType
 __all__ = ["target_summary", "target_relationships", "benjamini_hochberg"]
 
 
-def target_summary(
-    data: pd.DataFrame, profile: DatasetProfile, target: str
-) -> Dict[str, Any]:
+def target_summary(data: pd.DataFrame, profile: DatasetProfile, target: str) -> Dict[str, Any]:
     """Distribution of the target, plus the imbalance measurement."""
     series = data[target]
     out: Dict[str, Any] = {
@@ -121,9 +119,7 @@ def target_relationships(
             "column": name,
             "semantic": str(cp.semantic),
             "association": (
-                round(cp.target_association, 4)
-                if cp.target_association is not None
-                else None
+                round(cp.target_association, 4) if cp.target_association is not None else None
             ),
             "measure": cp.target_association_kind,
         }
@@ -145,9 +141,7 @@ def target_relationships(
         frame["p_value"] = frame["p_value"].round(6)
 
     frame["_sort"] = frame["association"].fillna(-1)
-    return frame.sort_values("_sort", ascending=False, ignore_index=True).drop(
-        columns="_sort"
-    )
+    return frame.sort_values("_sort", ascending=False, ignore_index=True).drop(columns="_sort")
 
 
 def _test(

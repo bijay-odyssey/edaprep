@@ -137,9 +137,7 @@ class EDAReport:
         if self.issues:
             parts.append("<h2>Findings</h2>")
             for issue in sorted(self.issues, key=lambda i: -i.severity.rank):
-                parts.append(
-                    f"<div class='w {_e(issue.severity)}'>{_e(issue.message)}</div>"
-                )
+                parts.append(f"<div class='w {_e(issue.severity)}'>{_e(issue.message)}</div>")
         parts.append("</main>")
         html = "\n".join(parts)
         if path:
@@ -262,9 +260,7 @@ class EDA:
     def profile_(self) -> DatasetProfile:
         """The profile, computed once and reused."""
         if self._profile is None:
-            self._profile = profile_dataset(
-                self.data, target=self.target, config=self.config
-            )
+            self._profile = profile_dataset(self.data, target=self.target, config=self.config)
         return self._profile
 
     def analyze(

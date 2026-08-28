@@ -148,19 +148,25 @@ def main() -> None:
     report = eda.analyze("standard")
 
     print("Numerical summary (most-skewed first):")
-    print(report.numerical[
-        ["column", "missing_%", "mean", "median", "skew", "n_zeros", "distribution"]
-    ].to_string(index=False))
+    print(
+        report.numerical[
+            ["column", "missing_%", "mean", "median", "skew", "n_zeros", "distribution"]
+        ].to_string(index=False)
+    )
 
     print("\nCategorical summary:")
-    print(report.categorical[
-        ["column", "n_unique", "modal_value", "modal_%", "n_rare_levels", "note"]
-    ].to_string(index=False))
+    print(
+        report.categorical[
+            ["column", "n_unique", "modal_value", "modal_%", "n_rare_levels", "note"]
+        ].to_string(index=False)
+    )
 
     print("\nOutliers -- the three fences disagree, which is the point:")
-    print(report.outliers[
-        ["column", "skew", "n_iqr", "n_zscore", "n_modified_z", "recommended"]
-    ].to_string(index=False))
+    print(
+        report.outliers[
+            ["column", "skew", "n_iqr", "n_zscore", "n_modified_z", "recommended"]
+        ].to_string(index=False)
+    )
 
     print("\nFeature/target association:")
     print(report.target_relationships.head(8).to_string(index=False))
@@ -178,7 +184,7 @@ def main() -> None:
     rule("5. THE PLAN  -- decided before a single row is touched")
     config = edaprep.Config(random_state=42)
     config.column("satisfaction_rating").semantic_type = "ordinal"
-    config.column("account_balance").outlier_strategy = "clip"   # a user override
+    config.column("account_balance").outlier_strategy = "clip"  # a user override
 
     pipe = edaprep.AutoPipeline(
         target="churn", model_family="linear", config=config, random_state=42
@@ -209,8 +215,10 @@ def main() -> None:
     print(f"identical columns:      {list(X_train.columns) == list(X_test.columns)}")
     all_numeric = all(pd.api.types.is_numeric_dtype(d) for d in X_train.dtypes)
     print(f"all numeric:            {all_numeric}")
-    print(f"missing values left:    {int(X_train.isna().sum().sum())} train, "
-          f"{int(X_test.isna().sum().sum())} test")
+    print(
+        f"missing values left:    {int(X_train.isna().sum().sum())} train, "
+        f"{int(X_test.isna().sum().sum())} test"
+    )
     print(f"target absent from X:   {'churn' not in X_train.columns}")
 
     print("\nfinal columns:")

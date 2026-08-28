@@ -130,9 +130,7 @@ def histogram(
     return ax
 
 
-def boxplot(
-    data: pd.DataFrame, columns: Sequence[str], ax: "Optional[Axes]" = None
-) -> "Axes":
+def boxplot(data: pd.DataFrame, columns: Sequence[str], ax: "Optional[Axes]" = None) -> "Axes":
     """Box plots for several columns side by side."""
     series = [pd.to_numeric(data[c], errors="coerce").dropna().to_numpy() for c in columns]
     ax = _axes(ax, figsize=(max(6, 1.2 * len(columns)), 5))
@@ -197,9 +195,7 @@ def category_bar(
     return ax
 
 
-def target_distribution(
-    data: pd.DataFrame, target: str, ax: "Optional[Axes]" = None
-) -> "Axes":
+def target_distribution(data: pd.DataFrame, target: str, ax: "Optional[Axes]" = None) -> "Axes":
     """Target distribution: a bar chart for classification, a histogram otherwise."""
     series = data[target].dropna()
     ax = _axes(ax)
@@ -288,9 +284,9 @@ def plot_profile(
         if profile.columns[c].semantic is SemanticType.NUMERIC and c != target
     ]
     numeric.sort(
-        key=lambda c: abs(profile.columns[c].skew)
-        if np.isfinite(profile.columns[c].skew)
-        else 0.0,
+        key=lambda c: (
+            abs(profile.columns[c].skew) if np.isfinite(profile.columns[c].skew) else 0.0
+        ),
         reverse=True,
     )
     numeric = numeric[:max_numeric]

@@ -118,15 +118,11 @@ class Backend(ABC):
         """Quantile matrix of shape ``(len(levels), len(columns))``."""
 
     @abstractmethod
-    def group_mean(
-        self, frame: Any, value_column: str, group_column: str
-    ) -> Dict[Any, float]:
+    def group_mean(self, frame: Any, value_column: str, group_column: str) -> Dict[Any, float]:
         """Mean of ``value_column`` per level of ``group_column``."""
 
     @abstractmethod
-    def duplicated_rows(
-        self, frame: Any, subset: Optional[Sequence[str]] = None
-    ) -> np.ndarray:
+    def duplicated_rows(self, frame: Any, subset: Optional[Sequence[str]] = None) -> np.ndarray:
         """Boolean array: True where the row repeats an earlier one."""
 
     # -- construction --------------------------------------------------------------------

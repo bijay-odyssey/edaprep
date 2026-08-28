@@ -60,6 +60,7 @@ __all__ = [
 #: the quartiles feed the IQR fence, and P5/P95 are reported for context.
 DEFAULT_QUANTILES: Tuple[float, ...] = (0.01, 0.05, 0.25, 0.50, 0.75, 0.95, 0.99)
 
+
 @dataclass(frozen=True)
 class NumericStats:
     """Moment and order statistics for a single numeric column."""
@@ -189,11 +190,7 @@ def _to_numeric_frame(frame: pd.DataFrame) -> pd.DataFrame:
     once here is what keeps the rest of the library dtype-agnostic.  Columns that are
     already float64 are passed through without a copy.
     """
-    needs_cast = [
-        name
-        for name in frame.columns
-        if frame[name].dtype != np.float64
-    ]
+    needs_cast = [name for name in frame.columns if frame[name].dtype != np.float64]
     if not needs_cast:
         return frame
     converted = {}
@@ -211,9 +208,7 @@ def _to_numeric_frame(frame: pd.DataFrame) -> pd.DataFrame:
                     name=str(name),
                 )
             except (TypeError, ValueError):
-                converted[str(name)] = pd.to_numeric(series, errors="coerce").astype(
-                    "float64"
-                )
+                converted[str(name)] = pd.to_numeric(series, errors="coerce").astype("float64")
     return pd.DataFrame(converted, index=frame.index, copy=False)
 
 
@@ -358,9 +353,7 @@ def _repair_small_magnitude(
     Columns whose spread really *is* rounding noise are handled separately by
     :func:`_denoise`, which runs afterwards and wins.
     """
-    at_risk = np.flatnonzero(
-        np.isfinite(std) & (std > 0.0) & (std**2 < _SMALL_MOMENT)
-    )
+    at_risk = np.flatnonzero(np.isfinite(std) & (std > 0.0) & (std**2 < _SMALL_MOMENT))
     if at_risk.size == 0:
         return skew, kurtosis
     skew = skew.copy()

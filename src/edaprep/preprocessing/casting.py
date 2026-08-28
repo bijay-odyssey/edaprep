@@ -81,9 +81,7 @@ class DataTypeInference(Transformer, ColumnTransformerMixin):
                 actions: List[str] = []
                 series = X[column]
                 cp = context.column_profile(column)
-                is_stringy = series.dtype == object or isinstance(
-                    series.dtype, pd.StringDtype
-                )
+                is_stringy = series.dtype == object or isinstance(series.dtype, pd.StringDtype)
 
                 if is_stringy and self.strip_whitespace:
                     actions.append("strip")
@@ -164,15 +162,11 @@ class DataTypeInference(Transformer, ColumnTransformerMixin):
                 target = self.target_dtypes_.get(column)
                 if "to_numeric" in actions:
                     parsed = pd.to_numeric(series, errors="coerce")
-                    counts["failed_to_parse"] = int(
-                        (series.notna() & parsed.isna()).sum()
-                    )
+                    counts["failed_to_parse"] = int((series.notna() & parsed.isna()).sum())
                     series = parsed
                 elif "to_datetime" in actions:
                     parsed = pd.to_datetime(series, errors="coerce", format="mixed")
-                    counts["failed_to_parse"] = int(
-                        (series.notna() & parsed.isna()).sum()
-                    )
+                    counts["failed_to_parse"] = int((series.notna() & parsed.isna()).sum())
                     series = parsed
                 elif "to_boolean" in actions:
                     series = _to_boolean(series)

@@ -56,9 +56,7 @@ class TextColumnHandler(Transformer, ColumnTransformerMixin):
 
     stage = Stage.ENCODE
 
-    def __init__(
-        self, columns: Optional[Sequence[str]] = None, strategy: str = "drop"
-    ) -> None:
+    def __init__(self, columns: Optional[Sequence[str]] = None, strategy: str = "drop") -> None:
         super().__init__(columns)
         self.strategy = strategy
 

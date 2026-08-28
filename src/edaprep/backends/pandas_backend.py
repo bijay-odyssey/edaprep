@@ -109,9 +109,7 @@ class PandasBackend(Backend):
             return frame.duplicated(subset=list(subset) if subset else None).to_numpy()
         except TypeError:
             return (
-                frame.astype(str)
-                .duplicated(subset=list(subset) if subset else None)
-                .to_numpy()
+                frame.astype(str).duplicated(subset=list(subset) if subset else None).to_numpy()
             )
 
     # -- construction --------------------------------------------------------------------

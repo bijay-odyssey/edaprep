@@ -148,9 +148,7 @@ class ZScoreDetector(OutlierDetector):
 
     def __init__(self, threshold: float = 3.0, ddof: int = 0) -> None:
         if threshold <= 0:
-            raise ConfigurationError(
-                f"ZScoreDetector(threshold={threshold}) must be positive."
-            )
+            raise ConfigurationError(f"ZScoreDetector(threshold={threshold}) must be positive.")
         self.threshold = float(threshold)
         self.ddof = int(ddof)
 
@@ -275,9 +273,7 @@ def make_detector(method: str, thresholds: Thresholds, skewed: bool = False) -> 
     raise ConfigurationError.unknown_option("outlier_method", method, sorted(_DETECTORS))
 
 
-def detect_outliers(
-    series: pd.Series, method: str = "iqr", **kwargs
-) -> pd.Series:
+def detect_outliers(series: pd.Series, method: str = "iqr", **kwargs) -> pd.Series:
     """Convenience: a boolean Series flagging outliers in ``series``.
 
     Aligned to the input index; missing values are never flagged.  This is the
@@ -354,9 +350,9 @@ class OutlierHandler(Transformer, ColumnTransformerMixin):
             if cp is not None:
                 if cp.semantic is not SemanticType.NUMERIC:
                     continue
-            elif not pd.api.types.is_numeric_dtype(
+            elif not pd.api.types.is_numeric_dtype(X[name].dtype) or pd.api.types.is_bool_dtype(
                 X[name].dtype
-            ) or pd.api.types.is_bool_dtype(X[name].dtype):
+            ):
                 continue
             # Columns created mid-pipeline (missing indicators, one-hot columns,
             # calendar flags) have no profile entry, so the semantic check above cannot

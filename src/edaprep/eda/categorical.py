@@ -72,9 +72,7 @@ def categorical_summary(
 def _note(cp, high_cardinality: int, n_rare: int) -> str:
     notes = []
     if cp.n_unique > high_cardinality:
-        notes.append(
-            f"high cardinality: one-hot would add {cp.n_unique} columns"
-        )
+        notes.append(f"high cardinality: one-hot would add {cp.n_unique} columns")
     if cp.is_near_constant:
         notes.append(f"near-constant ({cp.modal_frequency:.1%} one value)")
     if n_rare:
