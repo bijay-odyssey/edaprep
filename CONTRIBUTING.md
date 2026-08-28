@@ -185,6 +185,10 @@ optimise, and be willing to delete.
 ## Pull requests
 
 - Branch from `main`.
+- **Put `Closes #123` in the PR description** when the PR resolves an issue. It has
+  to be a real closing keyword — `Closes`, `Fixes`, `Resolves` — because `Per #123`
+  reads the same to a person and links nothing, leaving the issue looking unclaimed
+  and inviting somebody to duplicate your work.
 - One logical change per PR. A refactor and a fix in the same diff is two PRs.
 - Commit messages: `feat:`, `fix:`, `perf:`, `docs:`, `test:`, `ci:`, `refactor:`.
   Explain **why** in the body, not just what — the git log is documentation.

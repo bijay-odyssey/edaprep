@@ -4,6 +4,12 @@
 
 Closes #
 
+<!-- Keep the line above and put the issue number on it, even if you rewrite the rest
+     of this template. "Closes #5" links the PR to the issue and closes it on merge;
+     "Per #5" or "Fixes issue 5" look identical to a human and do neither, which
+     leaves the issue looking unclaimed and invites somebody to duplicate your work.
+     If this PR is not tied to an issue, delete the line. -->
+
 ## Checklist
 
 - [ ] `pytest` passes
