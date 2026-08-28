@@ -238,8 +238,7 @@ class DuplicateColumnFilter(_Dropper):
                 context.journal.warn(
                     "dropped_duplicate_columns",
                     f"{len(self.to_drop_)} duplicate column(s) removed, keeping the "
-                    f"first of each group: "
-                    + "; ".join("=".join(g) for g in self.groups_[:5]),
+                    f"first of each group: " + "; ".join("=".join(g) for g in self.groups_[:5]),
                     Severity.INFO,
                     tuple(self.to_drop_),
                     {"groups": [list(g) for g in self.groups_]},
@@ -350,7 +349,10 @@ class CorrelationFilter(_Dropper):
 
         if len(self.columns_) < 2 or len(X) < 3:
             context.journal.record(
-                self.stage, type(self).__name__, "correlation_filter", "fit",
+                self.stage,
+                type(self).__name__,
+                "correlation_filter",
+                "fit",
                 effect={"n_dropped": 0, "reason": "fewer than 2 numeric columns"},
             )
             return

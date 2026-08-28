@@ -152,9 +152,7 @@ def test_model_family_changes_the_plan(frame) -> None:
     assert any(s.stage is Stage.SCALE for s in linear.plan_)
 
     tree_enc = {d.column: d.action for d in tree.plan_.decisions if d.stage is Stage.ENCODE}
-    linear_enc = {
-        d.column: d.action for d in linear.plan_.decisions if d.stage is Stage.ENCODE
-    }
+    linear_enc = {d.column: d.action for d in linear.plan_.decisions if d.stage is Stage.ENCODE}
     assert tree_enc["city"] == "encode_ordinal"
     assert linear_enc["city"] == "encode_target"
 
@@ -355,9 +353,7 @@ def test_custom_rule_can_pre_empt_a_builtin(frame) -> None:
     ).fit(frame)
     # The custom rule only claims NUMERIC columns; ordinal and binary ones fall
     # through to the built-in, which is exactly how priority-ordered rules should work.
-    scale = {
-        d.column: d.action for d in pipe.plan_.decisions if d.stage is Stage.SCALE
-    }
+    scale = {d.column: d.action for d in pipe.plan_.decisions if d.stage is Stage.SCALE}
     assert scale["income"] == "scale_maxabs"
     assert scale["age"] == "scale_maxabs"
     assert scale["grade"] == "scale_standard"
@@ -480,9 +476,7 @@ def test_duplicate_rows_are_reported_not_removed() -> None:
 
 def test_unseen_categories_at_transform_time() -> None:
     gen = np.random.default_rng(5)
-    train = pd.DataFrame(
-        {"c": gen.choice(list("abc"), 300), "y": gen.integers(0, 2, 300)}
-    )
+    train = pd.DataFrame({"c": gen.choice(list("abc"), 300), "y": gen.integers(0, 2, 300)})
     test = pd.DataFrame({"c": ["a", "z", "q"], "y": [0, 1, 0]})
     pipe = AutoPipeline(target="y", model_family="linear", random_state=0).fit(train)
     out = pipe.transform(test)
@@ -620,11 +614,11 @@ def test_cast_introduced_nan_is_imputed() -> None:
     gen = np.random.default_rng(7)
     n = 300
     charges = [f"{v:.2f}" for v in gen.uniform(20, 8000, size=n)]
-    for i in range(0, 30, 3):          # 10 blanks, as strings
+    for i in range(0, 30, 3):  # 10 blanks, as strings
         charges[i] = " "
     frame = pd.DataFrame(
         {
-            "total_charges": charges,          # object dtype purely because of the blanks
+            "total_charges": charges,  # object dtype purely because of the blanks
             "tenure": gen.integers(1, 72, size=n),
             "churn": gen.integers(0, 2, size=n),
         }
@@ -656,13 +650,12 @@ def test_cast_introduced_nan_is_imputed() -> None:
 def test_cast_introduced_nan_imputed_on_unseen_test_rows() -> None:
     """The fitted statistic must carry to transform, not be recomputed per batch."""
     gen = np.random.default_rng(11)
+
     def make(n: int, blanks: int) -> pd.DataFrame:
         vals = [f"{v:.2f}" for v in gen.uniform(10, 500, size=n)]
         for i in range(blanks):
             vals[i] = ""
-        return pd.DataFrame(
-            {"amount": vals, "y": gen.integers(0, 2, size=n)}
-        )
+        return pd.DataFrame({"amount": vals, "y": gen.integers(0, 2, size=n)})
 
     train, test = make(200, 8), make(80, 5)
     pipe = AutoPipeline(target="y", model_family="linear", random_state=0).fit(train)
@@ -696,11 +689,11 @@ def test_placeholder_strings_get_a_missing_indicator() -> None:
     gen = np.random.default_rng(21)
     n = 300
     amounts = [f"{v:.2f}" for v in gen.uniform(20, 8000, size=n)]
-    for i in range(0, 72, 3):          # 24 blanks (8%), as strings
+    for i in range(0, 72, 3):  # 24 blanks (8%), as strings
         amounts[i] = ""
     frame = pd.DataFrame(
         {
-            "amount": amounts,          # object dtype purely because of the blanks
+            "amount": amounts,  # object dtype purely because of the blanks
             "y": gen.integers(0, 2, size=n),
         }
     )
@@ -736,7 +729,7 @@ def test_placeholder_heavy_column_is_dropped_rather_than_imputed() -> None:
     gen = np.random.default_rng(23)
     n = 300
     amounts = [f"{v:.2f}" for v in gen.uniform(20, 8000, size=n)]
-    for i in range(210):               # 210 blanks (70%), as strings
+    for i in range(210):  # 210 blanks (70%), as strings
         amounts[i] = ""
     # Two distinct non-null values must survive, otherwise drop_constant could claim
     # the column first and this test would be measuring the wrong rule.
@@ -770,7 +763,7 @@ def test_placeholder_heavy_column_with_fewer_than_60pct_is_not_dropped() -> None
     gen = np.random.default_rng(31)
     n = 300
     amounts = [f"{v:.2f}" for v in gen.uniform(20, 8000, size=n)]
-    for i in range(90):                # 90 blanks (30%), as strings
+    for i in range(90):  # 90 blanks (30%), as strings
         amounts[i] = ""
     frame = pd.DataFrame(
         {
@@ -790,10 +783,8 @@ def test_column_with_real_nan_still_gets_a_missing_indicator() -> None:
     gen = np.random.default_rng(29)
     n = 300
     values = gen.uniform(20, 8000, size=n).astype(float)
-    values[gen.choice(n, 24, replace=False)] = np.nan   # 8% real missing
-    frame = pd.DataFrame(
-        {"amount": values, "y": gen.integers(0, 2, size=n)}
-    )
+    values[gen.choice(n, 24, replace=False)] = np.nan  # 8% real missing
+    frame = pd.DataFrame({"amount": values, "y": gen.integers(0, 2, size=n)})
     pipe = AutoPipeline(target="y", model_family="linear", random_state=0)
     out = pipe.fit_transform(frame)
 
@@ -813,7 +804,7 @@ def test_from_dict_tolerates_settings_this_version_removed() -> None:
     saved_by_an_older_version = {
         "random_state": 42,
         "sample_size": None,
-        "n_jobs": 1,          # retired in 0.2.0
+        "n_jobs": 1,  # retired in 0.2.0
         "verbose": False,
     }
     with pytest.warns(UserWarning, match="n_jobs"):
@@ -831,7 +822,7 @@ def test_from_dict_round_trip_is_warning_free() -> None:
     original.column("age").imputation = "median"
 
     with _warnings.catch_warnings():
-        _warnings.simplefilter("error")          # any warning fails the test
+        _warnings.simplefilter("error")  # any warning fails the test
         restored = Config.from_dict(json.loads(json.dumps(original.to_dict())))
 
     assert restored.random_state == 7

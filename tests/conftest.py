@@ -32,9 +32,7 @@ def messy_frame() -> pd.DataFrame:
     balance = gen.normal(0, 500, n)
     balance[gen.choice(n, 200, replace=False)] = 0.0  # zero-heavy
 
-    city = gen.choice(
-        [f"city_{i:03d}" for i in range(180)], n
-    )  # high cardinality categorical
+    city = gen.choice([f"city_{i:03d}" for i in range(180)], n)  # high cardinality categorical
 
     workclass = gen.choice(["Private", "Gov", "SelfEmp", "?"], n, p=[0.6, 0.2, 0.15, 0.05])
     occupation = np.where(workclass == "?", "?", gen.choice(["Tech", "Sales", "Admin"], n))

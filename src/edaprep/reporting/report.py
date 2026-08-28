@@ -100,9 +100,7 @@ class Report:
 
         The audit hand-written pipelines need and rarely have.
         """
-        target_users = [
-            e for e in self.entries if "target_encode" in e.action
-        ]
+        target_users = [e for e in self.entries if "target_encode" in e.action]
         suspicious: List[str] = []
         if self.profile is not None:
             for issue in self.profile.issues:
@@ -110,9 +108,7 @@ class Report:
                     suspicious.extend(issue.columns)
         return {
             "target": self.plan.target if self.plan else None,
-            "transformers_using_target": sorted(
-                {e.transformer for e in target_users}
-            ),
+            "transformers_using_target": sorted({e.transformer for e in target_users}),
             "cross_fitted": any(e.action == "target_encode_oof" for e in target_users),
             "columns_suspected_of_leakage": suspicious,
             "statistics_learned_at_fit_only": True,
@@ -176,8 +172,7 @@ class Report:
             )
             if p.n_duplicate_rows:
                 lines.append(
-                    f"  {p.n_duplicate_rows:,} duplicate rows "
-                    f"({p.duplicate_row_fraction:.2%})"
+                    f"  {p.n_duplicate_rows:,} duplicate rows ({p.duplicate_row_fraction:.2%})"
                 )
             if p.target:
                 extra = f", {p.target_classes} classes" if p.target_classes else ""
@@ -187,8 +182,7 @@ class Report:
 
         lines.append("")
         lines.append(
-            f"Features: {len(self.feature_names_in)} in -> "
-            f"{len(self.feature_names_out)} out"
+            f"Features: {len(self.feature_names_in)} in -> {len(self.feature_names_out)} out"
         )
 
         dropped = self.dropped_columns
@@ -268,9 +262,7 @@ class Report:
 
     def _render_stage(self, stage: Stage, max_rows: int) -> List[str]:
         """Per-column lines combining the decision with its measured effect."""
-        decisions = (
-            [d for d in self.plan.decisions if d.stage is stage] if self.plan else []
-        )
+        decisions = [d for d in self.plan.decisions if d.stage is stage] if self.plan else []
         entries = [e for e in self.for_stage(stage) if e.phase == "transform"]
 
         effects: Dict[str, str] = {}
@@ -294,9 +286,7 @@ class Report:
                 mark = "*" if decision.is_override else " "
                 effect = effects.get(decision.column, "")
                 suffix = f"  [{effect}]" if effect else ""
-                lines.append(
-                    f" {mark} {decision.column:<26.26} -> {decision.action}{suffix}"
-                )
+                lines.append(f" {mark} {decision.column:<26.26} -> {decision.action}{suffix}")
             if len(decisions) > max_rows:
                 lines.append(f"   ... {len(decisions) - max_rows} more")
             return lines

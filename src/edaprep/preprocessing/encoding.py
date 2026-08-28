@@ -164,9 +164,7 @@ class RareCategoryGrouper(_CategoricalBase):
             timer.params = {"threshold": self.threshold, "other_label": self.other_label}
             timer.effect = {
                 "n_categories_grouped": dict(self.n_grouped_),
-                "n_categories_kept": {
-                    c: len(v) for c, v in self.kept_categories_.items()
-                },
+                "n_categories_kept": {c: len(v) for c, v in self.kept_categories_.items()},
             }
 
     def _transform(self, X: pd.DataFrame, context: FitContext) -> pd.DataFrame:
@@ -289,9 +287,7 @@ class OneHotEncoder(_CategoricalBase):
 
                 known_codes = {c for c in wanted_codes if c >= 0}
                 n_unknown = int(
-                    np.count_nonzero(
-                        (codes >= 0) & ~np.isin(codes, list(known_codes) or [-2])
-                    )
+                    np.count_nonzero((codes >= 0) & ~np.isin(codes, list(known_codes) or [-2]))
                 )
                 if n_unknown:
                     unknown_counts[column] = n_unknown
@@ -330,9 +326,7 @@ class OneHotEncoder(_CategoricalBase):
                 "n_unknown_values": unknown_counts,
             }
 
-        remaining = {
-            str(c): X[c] for c in X.columns if str(c) not in self.categories_
-        }
+        remaining = {str(c): X[c] for c in X.columns if str(c) not in self.categories_}
         return pd.DataFrame({**remaining, **added}, index=X.index, copy=False)
 
     def _compute_feature_names_out(self) -> List[str]:
@@ -375,9 +369,10 @@ class OrdinalEncoder(_CategoricalBase):
                     ordered = list(self.categories[column])  # user-supplied ordering
                 else:
                     series = self._as_object(X[column])
-                    if isinstance(X[column].dtype, pd.CategoricalDtype) and X[
-                        column
-                    ].dtype.ordered:
+                    if (
+                        isinstance(X[column].dtype, pd.CategoricalDtype)
+                        and X[column].dtype.ordered
+                    ):
                         # An ordered categorical already states the ordering; honouring
                         # it is the whole point of the dtype.
                         ordered = list(X[column].cat.categories)
@@ -387,9 +382,7 @@ class OrdinalEncoder(_CategoricalBase):
                 self.mappings_[column] = {c: i for i, c in enumerate(ordered)}
 
             timer.columns = list(self.columns_)
-            timer.effect = {
-                "n_categories": {c: len(v) for c, v in self.categories_.items()}
-            }
+            timer.effect = {"n_categories": {c: len(v) for c, v in self.categories_.items()}}
 
     def _transform(self, X: pd.DataFrame, context: FitContext) -> pd.DataFrame:
         replacements: Dict[str, pd.Series] = {}
@@ -459,9 +452,7 @@ class FrequencyEncoder(_CategoricalBase):
                 self.frequencies_[column] = counts.to_dict()
             timer.columns = list(self.columns_)
             timer.params = {"normalize": self.normalize}
-            timer.effect = {
-                "n_categories": {c: len(v) for c, v in self.frequencies_.items()}
-            }
+            timer.effect = {"n_categories": {c: len(v) for c, v in self.frequencies_.items()}}
 
     def _transform(self, X: pd.DataFrame, context: FitContext) -> pd.DataFrame:
         replacements: Dict[str, pd.Series] = {}
@@ -525,9 +516,7 @@ class TargetEncoder(_CategoricalBase):
         is the convention that makes the encoding read as "probability of the positive
         class" for imbalanced problems.
         """
-        if pd.api.types.is_numeric_dtype(y.dtype) and not pd.api.types.is_bool_dtype(
-            y.dtype
-        ):
+        if pd.api.types.is_numeric_dtype(y.dtype) and not pd.api.types.is_bool_dtype(y.dtype):
             return y.to_numpy(dtype=np.float64, na_value=np.nan, copy=False)
         counts = y.value_counts(dropna=True)
         if len(counts) > 2:
@@ -702,9 +691,7 @@ class CategoricalEncoder(_CategoricalBase):
         self.assignments_: Dict[str, str] = {}
         for column in self.columns_:
             cp = context.column_profile(column)
-            cardinality = (
-                cp.n_unique if cp is not None else int(X[column].nunique(dropna=True))
-            )
+            cardinality = cp.n_unique if cp is not None else int(X[column].nunique(dropna=True))
             if cp is not None and cp.semantic is SemanticType.ORDINAL:
                 self.assignments_[column] = "ordinal"
                 continue

@@ -116,9 +116,7 @@ class ColumnProfile:
             "is_target": self.is_target,
             "modal_value": quality_mod._jsonable(self.modal_value),
             "modal_frequency": round(self.modal_frequency, 6),
-            "top_values": [
-                [quality_mod._jsonable(v), c] for v, c in self.top_values
-            ],
+            "top_values": [[quality_mod._jsonable(v), c] for v, c in self.top_values],
         }
         if self.numeric is not None:
             out["numeric"] = self.numeric.to_dict()
@@ -396,9 +394,7 @@ def _target_kind_is_categorical(target_kind: Optional[str]) -> bool:
     return target_kind == "classification"
 
 
-def _correlation_ratio_batch(
-    target: pd.Series, values: pd.DataFrame
-) -> Dict[str, float]:
+def _correlation_ratio_batch(target: pd.Series, values: pd.DataFrame) -> Dict[str, float]:
     """Eta for every numeric column against one categorical target, in k passes.
 
     The per-column :func:`_correlation_ratio` runs a pandas ``groupby`` per feature.
@@ -426,9 +422,7 @@ def _correlation_ratio_batch(
     if chunk < len(names):
         out: Dict[str, float] = {}
         for start in range(0, len(names), chunk):
-            out.update(
-                _correlation_ratio_batch(target, values.iloc[:, start : start + chunk])
-            )
+            out.update(_correlation_ratio_batch(target, values.iloc[:, start : start + chunk]))
         return out
 
     matrix = values.to_numpy(dtype=np.float64, na_value=np.nan, copy=False)
@@ -838,9 +832,7 @@ def _build_issues(
     issues: List[Issue] = []
 
     if n_rows == 0:
-        issues.append(
-            Issue("empty_dataset", Severity.ERROR, "The dataset has 0 rows.")
-        )
+        issues.append(Issue("empty_dataset", Severity.ERROR, "The dataset has 0 rows."))
 
     constants = [c for c in column_order if columns[c].is_constant]
     if constants:
@@ -865,11 +857,7 @@ def _build_issues(
                 f">={thresholds.near_constant_ratio:.0%} of rows): "
                 f"{_names(near_constants)}.",
                 tuple(near_constants),
-                {
-                    "columns": {
-                        c: round(columns[c].modal_frequency, 4) for c in near_constants
-                    }
-                },
+                {"columns": {c: round(columns[c].modal_frequency, 4) for c in near_constants}},
             )
         )
 
@@ -987,8 +975,7 @@ def _build_issues(
                 "correlated_missingness",
                 Severity.INFO,
                 f"{len(comissing)} column pair(s) go missing together, which usually "
-                f"means a shared cause: "
-                + ", ".join(f"{a}~{b} ({c:.2f})" for a, b, c in top),
+                f"means a shared cause: " + ", ".join(f"{a}~{b} ({c:.2f})" for a, b, c in top),
                 tuple({c for pair in comissing for c in pair[:2]}),
                 {"pairs": [[a, b, round(c, 4)] for a, b, c in comissing]},
             )

@@ -260,9 +260,7 @@ def test_degenerate_fence_downgrades_to_report() -> None:
 def test_outlier_remove_does_not_drop_rows_during_transform() -> None:
     frame = pd.DataFrame({"x": np.concatenate([np.arange(100.0), [10_000.0]])})
     context = ctx(frame)
-    handler = OutlierHandler(["x"], method="iqr", strategy="remove").fit(
-        frame, None, context
-    )
+    handler = OutlierHandler(["x"], method="iqr", strategy="remove").fit(frame, None, context)
     assert len(handler.transform(frame, context)) == len(frame)
     assert handler.rows_to_remove(frame).sum() == 1
 
@@ -278,9 +276,7 @@ def test_imputer_matches_sklearn(strategy) -> None:
     values = gen.normal(size=200)
     values[::7] = np.nan
     frame = pd.DataFrame({"x": values})
-    ours = MissingValueHandler(["x"], strategy=strategy).fit_transform(
-        frame, None, ctx(frame)
-    )
+    ours = MissingValueHandler(["x"], strategy=strategy).fit_transform(frame, None, ctx(frame))
     theirs = SimpleImputer(strategy=strategy).fit_transform(frame)
     np.testing.assert_allclose(ours.to_numpy(), theirs)
 
@@ -292,9 +288,7 @@ def test_mode_imputation_matches_sklearn() -> None:
     # object column (it sorts the values). edaprep handles both, which the next test
     # pins down; here the point is only that the chosen mode agrees.
     frame = pd.DataFrame({"c": ["a", "a", "b", np.nan, np.nan, "c"]})
-    ours = MissingValueHandler(["c"], strategy="mode").fit_transform(
-        frame, None, ctx(frame)
-    )
+    ours = MissingValueHandler(["c"], strategy="mode").fit_transform(frame, None, ctx(frame))
     theirs = SimpleImputer(strategy="most_frequent").fit_transform(frame)
     assert ours["c"].tolist() == [v[0] for v in theirs]
 
@@ -340,9 +334,7 @@ def test_mostly_missing_column_is_imputed_but_reported() -> None:
     frame = pd.DataFrame({"x": [1.0] + [np.nan] * 99})
     context = ctx(frame)
     MissingValueHandler(["x"], strategy="median").fit(frame, None, context)
-    assert any(
-        w.code == "imputed_mostly_missing_column" for w in context.journal.warnings
-    )
+    assert any(w.code == "imputed_mostly_missing_column" for w in context.journal.warnings)
 
 
 def test_constant_imputation_without_a_value_is_an_error() -> None:
@@ -431,9 +423,7 @@ def test_frequency_encoder_and_unseen_categories() -> None:
 
 def test_rare_category_grouping() -> None:
     frame = pd.DataFrame({"c": ["common"] * 990 + [f"rare{i}" for i in range(10)]})
-    out = RareCategoryGrouper(["c"], threshold=0.01).fit_transform(
-        frame, None, ctx(frame)
-    )
+    out = RareCategoryGrouper(["c"], threshold=0.01).fit_transform(frame, None, ctx(frame))
     assert set(out["c"].unique()) == {"common", "__rare__"}
     assert (out["c"] == "__rare__").sum() == 10
 
@@ -470,9 +460,9 @@ def test_yeojohnson_matches_sklearn() -> None:
 
     gen = np.random.default_rng(11)
     frame = pd.DataFrame({"x": gen.lognormal(0, 1, 300)})
-    ours = DistributionTransformer(
-        ["x"], method="yeojohnson", standardize=True
-    ).fit_transform(frame, None, ctx(frame))
+    ours = DistributionTransformer(["x"], method="yeojohnson", standardize=True).fit_transform(
+        frame, None, ctx(frame)
+    )
     theirs = PowerTransformer(method="yeo-johnson", standardize=True).fit_transform(frame)
     np.testing.assert_allclose(ours.to_numpy(), theirs, rtol=1e-6, atol=1e-8)
 
@@ -539,17 +529,13 @@ def test_domain_violation_at_transform_time_is_reported() -> None:
     transformer = DistributionTransformer(["x"], method="log").fit(train, None, context)
     out = transformer.transform(pd.DataFrame({"x": [-5.0, 10.0]}), context)
     assert pd.isna(out["x"].iloc[0])
-    assert any(
-        w.code == "transform_domain_violation" for w in context.journal.warnings
-    )
+    assert any(w.code == "transform_domain_violation" for w in context.journal.warnings)
 
 
 def test_quantile_transform_clamps_unseen_extremes() -> None:
     train = pd.DataFrame({"x": np.arange(100.0)})
     context = ctx(train)
-    transformer = DistributionTransformer(["x"], method="quantile").fit(
-        train, None, context
-    )
+    transformer = DistributionTransformer(["x"], method="quantile").fit(train, None, context)
     out = transformer.transform(pd.DataFrame({"x": [-1000.0, 1000.0]}), context)
     assert out["x"].tolist() == [0.0, 1.0]
 
@@ -618,27 +604,21 @@ def test_integer_downcast_preserves_values() -> None:
 def test_float_downcast_is_refused_when_values_would_collide() -> None:
     """Distinct rows must not become identical to the model."""
     frame = pd.DataFrame({"f": [1.000000001, 1.000000002, 2.0]})
-    out = DataTypeInference(["f"], downcast_floats=True).fit_transform(
-        frame, None, ctx(frame)
-    )
+    out = DataTypeInference(["f"], downcast_floats=True).fit_transform(frame, None, ctx(frame))
     assert out["f"].dtype == np.float64
     assert out["f"].nunique() == 3
 
 
 def test_float_downcast_is_refused_when_out_of_range() -> None:
     frame = pd.DataFrame({"f": [1e39, 2e39, 3.0]})
-    out = DataTypeInference(["f"], downcast_floats=True).fit_transform(
-        frame, None, ctx(frame)
-    )
+    out = DataTypeInference(["f"], downcast_floats=True).fit_transform(frame, None, ctx(frame))
     assert out["f"].dtype == np.float64  # float32 would overflow to inf
 
 
 def test_float_downcast_applies_when_safe() -> None:
     frame = pd.DataFrame({"f": np.arange(100.0)})
     context = ctx(frame)
-    out = DataTypeInference(["f"], downcast_floats=True).fit_transform(
-        frame, None, context
-    )
+    out = DataTypeInference(["f"], downcast_floats=True).fit_transform(frame, None, context)
     assert out["f"].dtype == np.float32
     assert any(w.code == "float_downcast_is_lossy" for w in context.journal.warnings)
 
@@ -674,9 +654,7 @@ def test_variance_filter_warns_about_scale_dependence() -> None:
     frame = pd.DataFrame({"small": np.arange(100) * 1e-6, "big": np.arange(100.0)})
     context = ctx(frame)
     VarianceFilter(threshold=1e-6).fit(frame, None, context)
-    assert any(
-        w.code == "variance_filter_is_scale_dependent" for w in context.journal.warnings
-    )
+    assert any(w.code == "variance_filter_is_scale_dependent" for w in context.journal.warnings)
 
 
 def test_correlation_filter_is_order_independent() -> None:
@@ -693,13 +671,9 @@ def test_correlation_filter_is_order_independent() -> None:
     )
     forward = CorrelationFilter(threshold=0.95).fit(frame, None, ctx(frame))
     reversed_frame = frame[["d", "c", "b", "a"]]
-    backward = CorrelationFilter(threshold=0.95).fit(
-        reversed_frame, None, ctx(reversed_frame)
-    )
+    backward = CorrelationFilter(threshold=0.95).fit(reversed_frame, None, ctx(reversed_frame))
     # The same group is identified either way; only the representative may differ.
-    assert {frozenset(g) for g in forward.groups_} == {
-        frozenset(g) for g in backward.groups_
-    }
+    assert {frozenset(g) for g in forward.groups_} == {frozenset(g) for g in backward.groups_}
     assert len(forward.to_drop_) == len(backward.to_drop_) == 2
 
 
@@ -810,9 +784,7 @@ def test_text_length_features() -> None:
     frame = pd.DataFrame(
         {"t": [f"A long free text remark number {i} about the service." for i in range(100)]}
     )
-    out = TextColumnHandler(strategy="length_features").fit_transform(
-        frame, None, ctx(frame)
-    )
+    out = TextColumnHandler(strategy="length_features").fit_transform(frame, None, ctx(frame))
     assert "t__length" in out.columns and "t__n_words" in out.columns
 
 

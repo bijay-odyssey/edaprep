@@ -235,9 +235,7 @@ def infer_semantic_type(
         )
 
     # --- 2. dtypes that settle the question -------------------------------------
-    if pd.api.types.is_datetime64_any_dtype(dtype) or isinstance(
-        dtype, pd.DatetimeTZDtype
-    ):
+    if pd.api.types.is_datetime64_any_dtype(dtype) or isinstance(dtype, pd.DatetimeTZDtype):
         return TypeInference(
             SemanticType.DATETIME, confidence=1.0, reasons=("stored as a datetime dtype",)
         )
@@ -324,8 +322,7 @@ def infer_semantic_type(
                     confidence=min(conf, 0.95),
                     alternatives=(SemanticType.CATEGORICAL,),
                     reasons=(
-                        f"mean length {mean_len:.0f} chars, {mean_tokens:.1f} tokens "
-                        f"per value",
+                        f"mean length {mean_len:.0f} chars, {mean_tokens:.1f} tokens per value",
                     ),
                     extra={"mean_length": mean_len, "mean_tokens": mean_tokens},
                 )

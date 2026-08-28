@@ -78,9 +78,7 @@ def numerical_summary(
         return frame
     # Most-skewed first: those are the columns a reader most needs to look at.
     frame["_sort"] = frame["skew"].abs().fillna(-1)
-    frame = frame.sort_values("_sort", ascending=False, ignore_index=True).drop(
-        columns="_sort"
-    )
+    frame = frame.sort_values("_sort", ascending=False, ignore_index=True).drop(columns="_sort")
     numeric_cols = frame.select_dtypes(include="number").columns
     frame[numeric_cols] = frame[numeric_cols].round(4)
     return frame

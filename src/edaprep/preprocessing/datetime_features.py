@@ -191,9 +191,7 @@ class DateTimeExpander(Transformer, ColumnTransformerMixin):
 
     def _compute_feature_names_out(self) -> List[str]:
         names = [
-            c
-            for c in self.feature_names_in_
-            if not (self.drop_original and c in self.emitted_)
+            c for c in self.feature_names_in_ if not (self.drop_original and c in self.emitted_)
         ]
         for column, features in self.emitted_.items():
             names.extend(f"{column}__{f}" for f in features)

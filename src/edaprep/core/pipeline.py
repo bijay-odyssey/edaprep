@@ -226,9 +226,7 @@ class Pipeline(Transformer):
         self._context_ = context
         return super().fit_transform(X, y, context)
 
-    def transform(
-        self, X: pd.DataFrame, context: Optional[FitContext] = None
-    ) -> pd.DataFrame:
+    def transform(self, X: pd.DataFrame, context: Optional[FitContext] = None) -> pd.DataFrame:
         check_is_fitted(self)
         context = context or getattr(self, "_context_", None) or FitContext(config=self.config)
         # Only the most recent transform is described in the report; otherwise calling
@@ -437,9 +435,7 @@ class AutoPipeline(Pipeline):
         self.report_ = self.report()
         return out
 
-    def transform(
-        self, X: pd.DataFrame, context: Optional[FitContext] = None
-    ) -> pd.DataFrame:
+    def transform(self, X: pd.DataFrame, context: Optional[FitContext] = None) -> pd.DataFrame:
         out = super().transform(X, context)
         self.report_ = self.report()
         return out
@@ -497,9 +493,7 @@ class AutoPipeline(Pipeline):
                     "rule": d.rule,
                     "source": d.source,
                 }
-                for d in sorted(
-                    self.plan_.decisions, key=lambda d: (d.column, d.stage.order)
-                )
+                for d in sorted(self.plan_.decisions, key=lambda d: (d.column, d.stage.order))
             ]
         )
 

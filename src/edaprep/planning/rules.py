@@ -61,9 +61,7 @@ class Rule:
     priority: int = 0
     description: str = ""
 
-    def __call__(
-        self, column: ColumnProfile, context: RuleContext
-    ) -> Optional[Decision]:
+    def __call__(self, column: ColumnProfile, context: RuleContext) -> Optional[Decision]:
         return self.decide(column, context)
 
     def __repr__(self) -> str:
@@ -156,7 +154,8 @@ def _rule_drop_constant(cp: ColumnProfile, ctx: RuleContext) -> Optional[Decisio
         "drop",
         params={"n_unique": cp.n_unique},
         rationale=(
-            "entirely missing" if cp.missing_fraction == 1.0
+            "entirely missing"
+            if cp.missing_fraction == 1.0
             else f"constant ({cp.n_unique} distinct value)"
         ),
         rule="drop_constant",
@@ -226,7 +225,7 @@ def _rule_drop_high_missing(cp: ColumnProfile, ctx: RuleContext) -> Optional[Dec
         "drop",
         params={
             "missing_fraction": round(cp.missing_fraction, 4),
-            **( {"cast_missing": cast_missing} if cast_missing else {} ),
+            **({"cast_missing": cast_missing} if cast_missing else {}),
         },
         rationale=(
             f"{found}, above the {_pct(threshold)} ceiling; "
@@ -287,7 +286,7 @@ def _rule_missing_indicator(cp: ColumnProfile, ctx: RuleContext) -> Optional[Dec
         "add_missing_indicator",
         params={
             "missing_fraction": round(cp.missing_fraction, 4),
-            **( {"cast_missing": cast_missing} if cast_missing else {} ),
+            **({"cast_missing": cast_missing} if cast_missing else {}),
         },
         rationale=(
             f"{found}, above the {_pct(threshold)} flag "
@@ -344,11 +343,16 @@ def _rule_outliers(cp: ColumnProfile, ctx: RuleContext) -> Optional[Decision]:
     if strategy == AUTO:
         # Conservative by design: an unusual value is not evidence of an error, and the
         # brief is explicit that detection and removal are different decisions.
-        strategy = "clip" if ctx.model_family in (
-            ModelFamily.LINEAR,
-            ModelFamily.DISTANCE,
-            ModelFamily.NEURAL,
-        ) else "report"
+        strategy = (
+            "clip"
+            if ctx.model_family
+            in (
+                ModelFamily.LINEAR,
+                ModelFamily.DISTANCE,
+                ModelFamily.NEURAL,
+            )
+            else "report"
+        )
 
     return Decision(
         cp.name,
@@ -574,8 +578,7 @@ def _rule_transform(cp: ColumnProfile, ctx: RuleContext) -> Optional[Decision]:
     notes = ()
     if cp.has_zero and method == "log1p":
         notes = (
-            f"{cp.numeric.n_zeros} zero value(s) map to 0 under log1p, which is "
-            f"well defined",
+            f"{cp.numeric.n_zeros} zero value(s) map to 0 under log1p, which is well defined",
         )
 
     return Decision(
@@ -867,39 +870,104 @@ def default_rules() -> RuleSet:
     return RuleSet(
         [
             # DROP_COLUMNS
-            Rule("user_drop", Stage.DROP_COLUMNS, _rule_user_drop, priority=100,
-                 description="Honour config.column(name).drop = True"),
-            Rule("drop_constant", Stage.DROP_COLUMNS, _rule_drop_constant, priority=90,
-                 description="Remove columns with a single distinct value"),
-            Rule("drop_identifier", Stage.DROP_COLUMNS, _rule_drop_identifier, priority=80,
-                 description="Remove row keys, which cannot generalise"),
-            Rule("drop_high_missing", Stage.DROP_COLUMNS, _rule_drop_high_missing, priority=70,
-                 description="Remove columns too sparse to impute honestly"),
-            Rule("drop_text", Stage.DROP_COLUMNS, _rule_drop_text, priority=60,
-                 description="Remove free-text columns, which v1 does not vectorise"),
+            Rule(
+                "user_drop",
+                Stage.DROP_COLUMNS,
+                _rule_user_drop,
+                priority=100,
+                description="Honour config.column(name).drop = True",
+            ),
+            Rule(
+                "drop_constant",
+                Stage.DROP_COLUMNS,
+                _rule_drop_constant,
+                priority=90,
+                description="Remove columns with a single distinct value",
+            ),
+            Rule(
+                "drop_identifier",
+                Stage.DROP_COLUMNS,
+                _rule_drop_identifier,
+                priority=80,
+                description="Remove row keys, which cannot generalise",
+            ),
+            Rule(
+                "drop_high_missing",
+                Stage.DROP_COLUMNS,
+                _rule_drop_high_missing,
+                priority=70,
+                description="Remove columns too sparse to impute honestly",
+            ),
+            Rule(
+                "drop_text",
+                Stage.DROP_COLUMNS,
+                _rule_drop_text,
+                priority=60,
+                description="Remove free-text columns, which v1 does not vectorise",
+            ),
             # DATETIME
-            Rule("expand_datetime", Stage.DATETIME, _rule_datetime, priority=50,
-                 description="Expand datetimes into varying calendar features"),
+            Rule(
+                "expand_datetime",
+                Stage.DATETIME,
+                _rule_datetime,
+                priority=50,
+                description="Expand datetimes into varying calendar features",
+            ),
             # MISSING_FLAG
-            Rule("missing_indicator", Stage.MISSING_FLAG, _rule_missing_indicator, priority=50,
-                 description="Flag missingness before imputation destroys it"),
+            Rule(
+                "missing_indicator",
+                Stage.MISSING_FLAG,
+                _rule_missing_indicator,
+                priority=50,
+                description="Flag missingness before imputation destroys it",
+            ),
             # OUTLIERS
-            Rule("outlier_method_by_skew", Stage.OUTLIERS, _rule_outliers, priority=50,
-                 description="Choose the fence from measured skewness (axis 3)"),
+            Rule(
+                "outlier_method_by_skew",
+                Stage.OUTLIERS,
+                _rule_outliers,
+                priority=50,
+                description="Choose the fence from measured skewness (axis 3)",
+            ),
             # MISSING
-            Rule("impute_by_type", Stage.MISSING, _rule_impute, priority=50,
-                 description="Median for numeric, mode or explicit category otherwise"),
+            Rule(
+                "impute_by_type",
+                Stage.MISSING,
+                _rule_impute,
+                priority=50,
+                description="Median for numeric, mode or explicit category otherwise",
+            ),
             # TRANSFORM
-            Rule("transform_by_skew", Stage.TRANSFORM, _rule_transform, priority=50,
-                 description="Skew tiering with support validation (axis 1)"),
+            Rule(
+                "transform_by_skew",
+                Stage.TRANSFORM,
+                _rule_transform,
+                priority=50,
+                description="Skew tiering with support validation (axis 1)",
+            ),
             # RARE_CATEGORY
-            Rule("group_rare", Stage.RARE_CATEGORY, _rule_rare_category, priority=50,
-                 description="Collapse levels too rare to estimate"),
+            Rule(
+                "group_rare",
+                Stage.RARE_CATEGORY,
+                _rule_rare_category,
+                priority=50,
+                description="Collapse levels too rare to estimate",
+            ),
             # ENCODE
-            Rule("encode_by_cardinality_and_family", Stage.ENCODE, _rule_encode, priority=50,
-                 description="Route by cardinality and model family (axis 2)"),
+            Rule(
+                "encode_by_cardinality_and_family",
+                Stage.ENCODE,
+                _rule_encode,
+                priority=50,
+                description="Route by cardinality and model family (axis 2)",
+            ),
             # SCALE
-            Rule("scale_by_family", Stage.SCALE, _rule_scale, priority=50,
-                 description="Scale only when the model family needs it"),
+            Rule(
+                "scale_by_family",
+                Stage.SCALE,
+                _rule_scale,
+                priority=50,
+                description="Scale only when the model family needs it",
+            ),
         ]
     )

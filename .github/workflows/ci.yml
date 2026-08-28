@@ -59,7 +59,7 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install ruff
       - run: ruff check src/ tests/ benchmarks/ examples/
-      - run: ruff format --check --diff src/ tests/ || true  # advisory: not yet enforced
+      - run: ruff format --check --diff src/ tests/ benchmarks/ examples/
 
   package:
     name: build and verify the distribution

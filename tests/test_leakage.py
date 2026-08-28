@@ -80,9 +80,7 @@ def test_transform_output_is_independent_of_batching(split_frame) -> None:
     pipe.fit(train)
 
     whole = pipe.transform(test)
-    row_by_row = pd.concat(
-        [pipe.transform(test.iloc[[i]]) for i in range(len(test))], axis=0
-    )
+    row_by_row = pd.concat([pipe.transform(test.iloc[[i]]) for i in range(len(test))], axis=0)
     pd.testing.assert_frame_equal(whole, row_by_row, check_exact=False, rtol=1e-12)
 
 
@@ -139,9 +137,7 @@ def test_imputer_uses_train_median_only(split_frame) -> None:
     test.loc[test.index[:20], "num"] = np.nan
 
     context = _context(train)
-    handler = MissingValueHandler(["num"], strategy="median").fit(
-        train, train["y"], context
-    )
+    handler = MissingValueHandler(["num"], strategy="median").fit(train, train["y"], context)
     train_median = train["num"].median()
     assert handler.fill_values_["num"] == pytest.approx(train_median)
 
@@ -205,9 +201,7 @@ def test_target_encoding_is_cross_fitted() -> None:
     gen = np.random.default_rng(5)
     n = 600
     # One category per 2 rows: the pathological case for target encoding.
-    frame = pd.DataFrame(
-        {"c": [f"lvl_{i // 2}" for i in range(n)], "y": gen.integers(0, 2, n)}
-    )
+    frame = pd.DataFrame({"c": [f"lvl_{i // 2}" for i in range(n)], "y": gen.integers(0, 2, n)})
     context = _context(frame)
 
     encoder = TargetEncoder(["c"])
@@ -226,9 +220,7 @@ def test_target_encoding_is_cross_fitted() -> None:
 def test_target_encoder_fit_transform_differs_from_fit_then_transform() -> None:
     """The one place the two legitimately differ, and it must be the declared one."""
     gen = np.random.default_rng(6)
-    frame = pd.DataFrame(
-        {"c": gen.choice(list("abcdefgh"), 300), "y": gen.integers(0, 2, 300)}
-    )
+    frame = pd.DataFrame({"c": gen.choice(list("abcdefgh"), 300), "y": gen.integers(0, 2, 300)})
     context = _context(frame)
 
     a = TargetEncoder(["c"]).fit_transform(frame, frame["y"], context)["c"]
@@ -239,9 +231,7 @@ def test_target_encoder_fit_transform_differs_from_fit_then_transform() -> None:
 def test_target_encoder_transform_is_not_cross_fitted() -> None:
     """At transform time the full-train mapping is correct and must be used."""
     gen = np.random.default_rng(7)
-    frame = pd.DataFrame(
-        {"c": gen.choice(list("abc"), 300), "y": gen.integers(0, 2, 300)}
-    )
+    frame = pd.DataFrame({"c": gen.choice(list("abc"), 300), "y": gen.integers(0, 2, 300)})
     context = _context(frame)
     encoder = TargetEncoder(["c"]).fit(frame, frame["y"], context)
     out = encoder.transform(pd.DataFrame({"c": ["a", "b", "c"]}), context)
@@ -340,8 +330,21 @@ def test_transform_methods_compute_no_statistics() -> None:
     # Names that aggregate over data.  A call to any of these inside _transform means
     # the output for one row depends on the other rows in the same batch.
     forbidden = {
-        "mean", "median", "quantile", "std", "var", "mode", "value_counts",
-        "nunique", "corr", "cov", "skew", "kurt", "factorize", "unique", "rank",
+        "mean",
+        "median",
+        "quantile",
+        "std",
+        "var",
+        "mode",
+        "value_counts",
+        "nunique",
+        "corr",
+        "cov",
+        "skew",
+        "kurt",
+        "factorize",
+        "unique",
+        "rank",
     }
     # (transformer, attribute) pairs that are aggregations over something other than
     # the incoming data, with the reason recorded.
