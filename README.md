@@ -273,6 +273,7 @@ changed what shipped are listed here alongside the commits.
 | [@zbs-ops](https://github.com/zbs-ops) | Benchmarked parallelising the per-column profiling loop, which is what decided [#9](https://github.com/bijay-odyssey/edaprep/issues/9) — no commit, and the reason the parameter went |
 | [@Jeferson681](https://github.com/Jeferson681) | Made the missing-indicator and high-missing rules see gaps introduced at the cast step ([#16](https://github.com/bijay-odyssey/edaprep/pull/16)) |
 | [@luziyi123448-gif](https://github.com/luziyi123448-gif) | Independent fix for the same issue whose design was the better one; it survives as [#18](https://github.com/bijay-odyssey/edaprep/issues/18) ([#17](https://github.com/bijay-odyssey/edaprep/pull/17)) |
+| [@LeonxLJX](https://github.com/LeonxLJX) | Formatted the tree and made `ruff format` a real CI gate rather than an advisory one ([#25](https://github.com/bijay-odyssey/edaprep/pull/25)) |
 
 [GitHub's contributors graph](https://github.com/bijay-odyssey/edaprep/graphs/contributors)
 counts commits on `main`, so it cannot show a benchmark that settled an argument or a
