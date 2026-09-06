@@ -33,6 +33,7 @@ from ..types import CATEGORICAL_LIKE, ModelFamily, SemanticType, Severity, Stage
 __all__ = [
     "RareCategoryGrouper",
     "OneHotEncoder",
+    "BinaryEncoder",
     "OrdinalEncoder",
     "FrequencyEncoder",
     "TargetEncoder",
@@ -307,6 +308,100 @@ class OneHotEncoder(_CategoricalBase):
                     added[name] = pd.Series(
                         (codes == code).astype(self.dtype), index=X.index, name=name
                     )
+
+            if unknown_counts:
+                context.journal.warn(
+                    "unseen_categories",
+                    f"{sum(unknown_counts.values())} value(s) across "
+                    f"{len(unknown_counts)} column(s) were not present at fit time and "
+                    f"were encoded as all-zero indicators: "
+                    f"{', '.join(sorted(unknown_counts))}.",
+                    Severity.INFO,
+                    tuple(unknown_counts),
+                    unknown_counts,
+                )
+
+            timer.columns = list(self.categories_)
+            timer.effect = {
+                "n_output_columns": len(added),
+                "n_unknown_values": unknown_counts,
+            }
+
+        remaining = {str(c): X[c] for c in X.columns if str(c) not in self.categories_}
+        return pd.DataFrame({**remaining, **added}, index=X.index, copy=False)
+
+    def _compute_feature_names_out(self) -> List[str]:
+        out = [c for c in self.feature_names_in_ if c not in self.categories_]
+        for column in self.categories_:
+            out.extend(self.output_names_[column])
+        return out
+
+
+class BinaryEncoder(_CategoricalBase):
+    """Expand each category into ``ceil(log2(n))`` binary indicator columns.
+
+    A middle ground between one-hot (``n`` columns) and ordinal (one column with a
+    false ordering).  Unseen categories at transform time are encoded as all-zero,
+    consistent with :class:`OneHotEncoder`.
+    """
+
+    stage = Stage.ENCODE
+
+    def __init__(
+        self,
+        columns: Optional[Sequence[str]] = None,
+        dtype: str = "int8",
+    ) -> None:
+        super().__init__(columns)
+        self.dtype = dtype
+
+    def _fit(self, X: pd.DataFrame, y: Optional[pd.Series], context: FitContext) -> None:
+        self.categories_: Dict[str, List[Any]] = {}
+        self.mappings_: Dict[str, Dict[Any, int]] = {}
+        self.n_bits_: Dict[str, int] = {}
+        self.output_names_: Dict[str, List[str]] = {}
+
+        with context.journal.timer(self.stage, type(self).__name__, "fit", "fit") as timer:
+            total = 0
+            for column in self.columns_:
+                series = self._as_object(X[column])
+                categories = sorted(series.dropna().unique(), key=_sort_key)
+                self.categories_[column] = categories
+                self.mappings_[column] = {c: i for i, c in enumerate(categories)}
+                n_bits = int(np.ceil(np.log2(max(len(categories), 1))))
+                self.n_bits_[column] = n_bits
+                self.output_names_[column] = [f"{column}__bin{i}" for i in range(n_bits)]
+                total += n_bits
+
+            timer.columns = list(self.columns_)
+            timer.effect = {"n_output_columns": total}
+
+    def _transform(self, X: pd.DataFrame, context: FitContext) -> pd.DataFrame:
+        added: Dict[str, pd.Series] = {}
+        unknown_counts: Dict[str, int] = {}
+
+        with context.journal.timer(
+            self.stage, type(self).__name__, "binary", "transform"
+        ) as timer:
+            for column in self.columns_:
+                if column not in X.columns:
+                    continue
+                series = self._as_object(X[column])
+                mapping = self.mappings_[column]
+                integer_codes = series.map(mapping)
+                unknown = series.notna() & integer_codes.isna()
+                n_unknown = int(unknown.sum())
+                if n_unknown:
+                    unknown_counts[column] = n_unknown
+
+                n_bits = self.n_bits_[column]
+                known = integer_codes.notna()
+                codes_int = integer_codes[known].to_numpy(dtype=np.int64)
+                for bit, name in enumerate(self.output_names_[column]):
+                    values = np.zeros(len(X), dtype=self.dtype)
+                    if known.any():
+                        values[known.to_numpy()] = ((codes_int >> bit) & 1).astype(self.dtype)
+                    added[name] = pd.Series(values, index=X.index, name=name)
 
             if unknown_counts:
                 context.journal.warn(
@@ -734,13 +829,9 @@ class CategoricalEncoder(_CategoricalBase):
         if strategy == "target":
             return TargetEncoder(cols)
         if strategy == "binary":
-            raise ConfigurationError(
-                "encoding='binary' is not implemented in this version. Use 'frequency' "
-                "or 'target' for high-cardinality columns; both produce a single "
-                "column and are better understood."
-            )
+            return BinaryEncoder(cols)
         raise ConfigurationError.unknown_option(
-            "encoding", strategy, ["onehot", "ordinal", "frequency", "count", "target"]
+            "encoding", strategy, ["onehot", "ordinal", "frequency", "count", "target", "binary"]
         )
 
     def _fit_transform(
@@ -774,12 +865,17 @@ class CategoricalEncoder(_CategoricalBase):
         return X[keep]
 
     def _compute_feature_names_out(self) -> List[str]:
-        # Must match _transform exactly.  One-hot appends its indicator columns at the
-        # end rather than expanding in place (expanding in place would mean rebuilding
+        # Must match _transform exactly.  One-hot and binary append indicator columns at
+        # the end rather than expanding in place (expanding in place would mean rebuilding
         # the frame around each encoded column), so the names have to be appended too.
         # Ordinal, frequency and target encoding all replace their column in position.
         onehot = self.encoders_.get("onehot")
-        encoded_away = set(getattr(onehot, "categories_", {})) if onehot else set()
+        binary = self.encoders_.get("binary")
+        encoded_away = set()
+        if onehot is not None:
+            encoded_away.update(onehot.categories_)  # type: ignore[attr-defined]
+        if binary is not None:
+            encoded_away.update(binary.categories_)  # type: ignore[attr-defined]
         names = [
             c
             for c in self.feature_names_in_
@@ -788,4 +884,7 @@ class CategoricalEncoder(_CategoricalBase):
         if onehot is not None:
             for column in onehot.categories_:  # type: ignore[attr-defined]
                 names.extend(onehot.output_names_[column])  # type: ignore[attr-defined]
+        if binary is not None:
+            for column in binary.categories_:  # type: ignore[attr-defined]
+                names.extend(binary.output_names_[column])  # type: ignore[attr-defined]
         return names
