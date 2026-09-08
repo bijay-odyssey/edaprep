@@ -7,6 +7,35 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html). While t
 version is `0.x`, the public API may change between minor versions; anything that does
 will be listed under **Changed** with a migration note.
 
+## [0.2.1] — 2026-09-08
+
+### Fixed
+
+- **The missing-indicator and drop-high-missing rules now see placeholders that
+  become `NaN` at the cast step.** [0.2.0] fixed this for the imputation rule
+  (`_rule_impute`, [#12](https://github.com/bijay-odyssey/edaprep/pull/12)); the other
+  two rules keyed on `missing_fraction` were still reading the profiler's figure, which
+  is measured on the raw frame where a placeholder is still the string `''` (or `?`,
+  `N/A`, …) rather than `NaN`. `Stage.CAST` converts those first, so by the time these
+  rules run their input is stale.
+
+  - `_rule_missing_indicator` — a column that is 8% blank strings now earns a
+    missing-indicator column, where before it earned none.
+  - `_rule_drop_high_missing` — a column that is 70% blank strings is now dropped,
+    rather than imputed from the 30% that actually parsed.
+
+  Placeholder counts come from the profiling sample, so when sampling is on the
+  effective fraction is a lower bound: the rule can miss a threshold crossing but
+  cannot manufacture one, which is the safe direction for a rule that deletes a
+  column. Fixed by [@Jeferson681](https://github.com/Jeferson681) in
+  [#16](https://github.com/bijay-odyssey/edaprep/pull/16), closing
+  [#14](https://github.com/bijay-odyssey/edaprep/issues/14).
+
+  `missing_fraction` in a decision's `params` still means the raw figure in these
+  rules while the rationale quotes the effective one; making that consistent across
+  all three rules is tracked in
+  [#18](https://github.com/bijay-odyssey/edaprep/issues/18).
+
 ## [0.2.0] — 2026-08-26
 
 ### Removed
@@ -126,5 +155,6 @@ First public release. Available on PyPI: `pip install edaprep`.
 - No resampling: class imbalance is measured and reported, because resampling belongs
   after the train/test split and with the model.
 
+[0.2.1]: https://github.com/bijay-odyssey/edaprep/releases/tag/v0.2.1
 [0.2.0]: https://github.com/bijay-odyssey/edaprep/releases/tag/v0.2.0
 [0.1.0]: https://github.com/bijay-odyssey/edaprep/releases/tag/v0.1.0
