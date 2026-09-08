@@ -47,7 +47,34 @@ jobs:
         run: python -m pip list
 
       - name: Test
+        # Skips the row the coverage step below covers, so the suite runs once there.
+        if: ${{ !(matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12') }}
         run: python -m pytest tests/ -q
+
+      - name: Test with coverage
+        # One row only (ubuntu + 3.12, the fastest). Replaces the plain Test step
+        # above on that row rather than running in addition to it.
+        if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' }}
+        run: python -m pytest tests/ -q --cov=edaprep --cov-report=term --cov-report=xml
+
+      - name: Coverage summary
+        if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' }}
+        run: |
+          {
+            echo "## Coverage: $(python -m coverage report --format=total)%"
+            echo
+            echo "Worst-covered first. A low number is not automatically a problem --"
+            echo "some of these are defensive branches that are unreachable on purpose."
+            echo
+            python -m coverage report --format=markdown --sort=cover
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage.xml
+        if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
 
   lint:
     name: lint
