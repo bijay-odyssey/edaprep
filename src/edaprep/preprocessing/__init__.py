@@ -8,6 +8,7 @@ from .casting import DataTypeInference
 from .datetime_features import DateTimeExpander
 from .duplicates import DuplicateRowHandler, duplicate_report
 from .encoding import (
+    BinaryEncoder,
     CategoricalEncoder,
     FrequencyEncoder,
     OneHotEncoder,
@@ -51,6 +52,7 @@ __all__ = [
     "detect_outliers",
     "CategoricalEncoder",
     "OneHotEncoder",
+    "BinaryEncoder",
     "OrdinalEncoder",
     "FrequencyEncoder",
     "TargetEncoder",

@@ -15,6 +15,7 @@ from edaprep.exceptions import (
     TransformationError,
 )
 from edaprep.preprocessing import (
+    BinaryEncoder,
     CategoricalEncoder,
     ColumnDropper,
     ConstantFilter,
@@ -394,6 +395,47 @@ def test_onehot_drop_first() -> None:
     frame = pd.DataFrame({"c": ["a", "b", "c"] * 20})
     out = OneHotEncoder(["c"], drop_first=True).fit_transform(frame, None, ctx(frame))
     assert list(out.columns) == ["c_b", "c_c"]
+
+
+def test_binary_encoder_distinct_categories_get_distinct_codes() -> None:
+    frame = pd.DataFrame({"c": ["a", "b", "c", "d"]})
+    out = BinaryEncoder(["c"]).fit_transform(frame, None, ctx(frame))
+    codes = [tuple(row) for row in out.to_numpy()]
+    assert len(codes) == len(set(codes))
+
+
+def test_binary_encoder_output_width() -> None:
+    for n in (1, 2, 3, 4, 5, 8, 9):
+        categories = [f"v{i}" for i in range(n)]
+        frame = pd.DataFrame({"c": categories})
+        out = BinaryEncoder(["c"]).fit_transform(frame, None, ctx(frame))
+        expected = int(np.ceil(np.log2(max(n, 1))))
+        assert len([c for c in out.columns if c.startswith("c__bin")]) == expected
+
+
+def test_binary_column_order_is_deterministic() -> None:
+    gen = np.random.default_rng(81)
+    frame = pd.DataFrame({"c": gen.choice(list("dcba"), 100)})
+    a = BinaryEncoder(["c"]).fit_transform(frame, None, ctx(frame))
+    b = BinaryEncoder(["c"]).fit_transform(frame.iloc[::-1], None, ctx(frame))
+    assert list(a.columns) == list(b.columns)
+    assert list(a.columns) == ["c__bin0", "c__bin1"]
+
+
+def test_binary_encoder_unseen_category_is_all_zero() -> None:
+    train = pd.DataFrame({"c": ["a", "b", "c", "d"] * 20})
+    context = ctx(train)
+    encoder = BinaryEncoder(["c"]).fit(train, None, context)
+    out = encoder.transform(pd.DataFrame({"c": ["zzz"]}), context)
+    assert out.to_numpy().tolist() == [[0, 0]]
+
+
+def test_binary_encoder_feature_names_match_columns() -> None:
+    frame = pd.DataFrame({"c": ["a", "b", "c", "d", "e"]})
+    context = ctx(frame)
+    encoder = BinaryEncoder(["c"]).fit(frame, None, context)
+    out = encoder.transform(frame, context)
+    assert list(encoder.get_feature_names_out()) == list(out.columns)
 
 
 def test_ordinal_encoder_honours_an_ordered_categorical() -> None:
@@ -798,6 +840,7 @@ ALL_TRANSFORMERS = [
     OutlierHandler,
     CategoricalEncoder,
     OneHotEncoder,
+    BinaryEncoder,
     OrdinalEncoder,
     FrequencyEncoder,
     RareCategoryGrouper,
