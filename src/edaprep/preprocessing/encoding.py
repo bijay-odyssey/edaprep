@@ -394,7 +394,6 @@ class BinaryEncoder(_CategoricalBase):
                 if n_unknown:
                     unknown_counts[column] = n_unknown
 
-                n_bits = self.n_bits_[column]
                 known = integer_codes.notna()
                 codes_int = integer_codes[known].to_numpy(dtype=np.int64)
                 for bit, name in enumerate(self.output_names_[column]):
@@ -831,7 +830,9 @@ class CategoricalEncoder(_CategoricalBase):
         if strategy == "binary":
             return BinaryEncoder(cols)
         raise ConfigurationError.unknown_option(
-            "encoding", strategy, ["onehot", "ordinal", "frequency", "count", "target", "binary"]
+            "encoding",
+            strategy,
+            ["onehot", "ordinal", "frequency", "count", "target", "binary"],
         )
 
     def _fit_transform(
