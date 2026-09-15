@@ -362,6 +362,192 @@ def test_missing_indicator_respects_threshold() -> None:
     assert indicator.columns_ == []
 
 
+def _correlated_imputation_frame() -> pd.DataFrame:
+    rng = np.random.default_rng(21)
+    n = 120
+    y = rng.normal(0, 1, n)
+    x = 2.0 * y + rng.normal(0, 0.05, n)
+    frame = pd.DataFrame({"x": x, "y": y})
+    frame.loc[frame.index[::4], "x"] = np.nan
+    return frame
+
+
+def test_knn_imputation_uses_correlated_feature_not_median() -> None:
+    frame = _correlated_imputation_frame()
+    context = ctx(frame)
+    median_out = MissingValueHandler(["x"], strategy="median").fit_transform(
+        frame, None, context
+    )
+    knn_out = MissingValueHandler(["x"], strategy="knn").fit_transform(frame, None, context)
+    mask = frame["x"].isna()
+    median_fill = float(frame["x"].median())
+    imputed = knn_out.loc[mask, "x"].to_numpy()
+    expected = (2.0 * frame.loc[mask, "y"]).to_numpy()
+    assert np.corrcoef(imputed, expected)[0, 1] > 0.95
+    assert not np.allclose(imputed, median_fill, rtol=1e-6, atol=1e-6)
+    assert not np.allclose(imputed, median_out.loc[mask, "x"].to_numpy(), rtol=1e-6, atol=1e-6)
+
+
+def test_iterative_imputation_uses_correlated_feature_not_median() -> None:
+    frame = _correlated_imputation_frame()
+    context = ctx(frame)
+    median_out = MissingValueHandler(["x"], strategy="median").fit_transform(
+        frame, None, context
+    )
+    iterative_out = MissingValueHandler(["x"], strategy="iterative").fit_transform(
+        frame, None, context
+    )
+    mask = frame["x"].isna()
+    median_fill = float(frame["x"].median())
+    imputed = iterative_out.loc[mask, "x"].to_numpy()
+    expected = (2.0 * frame.loc[mask, "y"]).to_numpy()
+    assert np.corrcoef(imputed, expected)[0, 1] > 0.95
+    assert not np.allclose(imputed, median_fill, rtol=1e-6, atol=1e-6)
+    assert not np.allclose(
+        imputed, median_out.loc[mask, "x"].to_numpy(), rtol=1e-6, atol=1e-6
+    )
+
+
+def test_knn_uses_numeric_predictor_outside_columns_and_leaves_it_unchanged() -> None:
+    """Only ``x`` is handled, but ``y`` in ``X`` must still inform KNN imputation."""
+    frame = _correlated_imputation_frame()
+    context = ctx(frame)
+    handler = MissingValueHandler(["x"], strategy="knn").fit(frame, None, context)
+    assert "y" not in handler.columns_
+    assert handler.imputer_block_columns_ == ["x", "y"]
+    out = handler.transform(frame, context)
+    mask = frame["x"].isna()
+    imputed = out.loc[mask, "x"].to_numpy()
+    expected = (2.0 * frame.loc[mask, "y"]).to_numpy()
+    assert np.corrcoef(imputed, expected)[0, 1] > 0.95
+    assert np.allclose(out["y"].to_numpy(), frame["y"].to_numpy())
+    assert list(out.columns) == list(frame.columns)
+
+
+def test_knn_median_predictor_column_stays_in_imputer_block() -> None:
+    """Column y uses median but must still be a KNN predictor for x."""
+    frame = _correlated_imputation_frame()
+    context = ctx(frame)
+    handler = MissingValueHandler(
+        ["x", "y"], strategy="median", per_column={"x": "knn"}
+    ).fit(frame, None, context)
+    assert handler.imputer_block_columns_ == ["x", "y"]
+    assert handler.strategies_["y"] == "median"
+    out = handler.transform(frame, context)
+    mask = frame["x"].isna()
+    imputed = out.loc[mask, "x"].to_numpy()
+    expected = (2.0 * frame.loc[mask, "y"]).to_numpy()
+    assert np.corrcoef(imputed, expected)[0, 1] > 0.95
+    assert np.allclose(out["y"].to_numpy(), frame["y"].to_numpy())
+
+
+def test_all_missing_predictor_column_is_excluded_and_does_not_distort_knn() -> None:
+    frame = _correlated_imputation_frame()
+    with_dead = frame.assign(z=np.nan)
+    context = ctx(with_dead)
+    with_z = MissingValueHandler(["x"], strategy="knn").fit_transform(with_dead, None, context)
+    without_z = MissingValueHandler(["x"], strategy="knn").fit_transform(frame, None, context)
+    handler = MissingValueHandler(["x"], strategy="knn").fit(with_dead, None, context)
+    assert "z" in handler.imputer_block_all_missing_
+    assert "z" not in handler.imputer_block_columns_
+    mask = frame["x"].isna()
+    np.testing.assert_allclose(with_z.loc[mask, "x"], without_z.loc[mask, "x"], rtol=1e-10)
+    assert with_z["z"].isna().all()
+
+
+def test_all_missing_knn_target_column_stays_missing_with_warning() -> None:
+    frame = pd.DataFrame({"x": [np.nan] * 12, "y": np.arange(12.0)})
+    context = ctx(frame)
+    handler = MissingValueHandler(["x"], strategy="knn").fit(frame, None, context)
+    assert "x" in handler.imputer_block_all_missing_
+    assert "x" not in handler.imputer_block_columns_
+    assert any(w.code == "no_data_to_learn_fill" for w in context.journal.warnings)
+    out = handler.transform(frame, context)
+    assert out["x"].isna().all()
+    assert list(out.columns) == list(frame.columns)
+    assert np.allclose(out["y"].to_numpy(), frame["y"].to_numpy())
+
+
+def test_knn_transform_batch_equals_row_by_row() -> None:
+    frame = _correlated_imputation_frame()
+    context = ctx(frame)
+    handler = MissingValueHandler(["x", "y"], strategy="knn").fit(frame, None, context)
+    whole = handler.transform(frame, context)
+    rows = pd.concat(
+        [handler.transform(frame.iloc[[i]], context) for i in range(len(frame))],
+        axis=0,
+    )
+    pd.testing.assert_frame_equal(whole, rows)
+
+
+def test_iterative_transform_batch_equals_row_by_row() -> None:
+    frame = _correlated_imputation_frame()
+    context = ctx(frame)
+    handler = MissingValueHandler(["x", "y"], strategy="iterative").fit(frame, None, context)
+    whole = handler.transform(frame, context)
+    rows = pd.concat(
+        [handler.transform(frame.iloc[[i]], context) for i in range(len(frame))],
+        axis=0,
+    )
+    pd.testing.assert_frame_equal(whole, rows)
+
+
+def test_sklearn_imputers_are_not_refit_on_transform() -> None:
+    frame = _correlated_imputation_frame()
+    context = ctx(frame)
+    handler = MissingValueHandler(["x", "y"], strategy="knn").fit(frame, None, context)
+    assert handler.knn_imputer_ is not None
+    def _no_knn_fit(*args, **kwargs):
+        raise AssertionError("KNNImputer.fit must not run during transform")
+
+    handler.knn_imputer_.fit = _no_knn_fit  # type: ignore[method-assign]
+    handler.transform(frame.iloc[:10], context)
+
+    handler2 = MissingValueHandler(["x", "y"], strategy="iterative").fit(frame, None, context)
+    assert handler2.iterative_imputer_ is not None
+
+    def _no_iter_fit(*args, **kwargs):
+        raise AssertionError("IterativeImputer.fit must not run during transform")
+
+    handler2.iterative_imputer_.fit = _no_iter_fit  # type: ignore[method-assign]
+    handler2.transform(frame.iloc[:10], context)
+
+
+def test_knn_imputation_rejects_non_numeric_column() -> None:
+    frame = pd.DataFrame({"c": ["a", None, "b"], "x": [1.0, np.nan, 3.0]})
+    with pytest.raises(ConfigurationError, match="numeric"):
+        MissingValueHandler(["c"], strategy="knn").fit(frame, None, ctx(frame))
+
+
+def test_iterative_imputation_rejects_non_numeric_column() -> None:
+    frame = pd.DataFrame({"c": ["a", None, "b"], "x": [1.0, np.nan, 3.0]})
+    with pytest.raises(ConfigurationError, match="numeric"):
+        MissingValueHandler(["c"], strategy="iterative").fit(frame, None, ctx(frame))
+
+
+def test_sklearn_imputation_requires_advanced_extra(monkeypatch) -> None:
+    import edaprep.preprocessing.missing as missing_mod
+
+    def _missing_sklearn():
+        raise ConfigurationError(
+            "strategy='knn' or 'iterative' requires scikit-learn. "
+            "Install the optional dependency with: pip install 'edaprep[advanced]' "
+            "(requires scikit-learn>=1.1)."
+        )
+
+    monkeypatch.setattr(missing_mod, "_load_sklearn_imputers", _missing_sklearn)
+    frame = pd.DataFrame({"x": [1.0, np.nan, 3.0]})
+    with pytest.raises(ConfigurationError, match="edaprep\\[advanced\\]"):
+        MissingValueHandler(["x"], strategy="knn").fit(frame, None, ctx(frame))
+
+
+def test_config_accepts_knn_and_iterative_missing_strategies() -> None:
+    Config(missing_strategy="knn")
+    Config(missing_strategy="iterative")
+    Config().column("age").imputation = "knn"
+    Config().column("score").imputation = "iterative"
+
+
 # ============================== encoding ==============================================
 
 

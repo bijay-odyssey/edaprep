@@ -36,7 +36,19 @@ __all__ = ["Config", "ColumnConfig", "Thresholds", "AUTO"]
 AUTO = "auto"
 
 _MISSING_STRATEGIES = frozenset(
-    {AUTO, "mean", "median", "mode", "constant", "ffill", "bfill", "drop_rows", "none"}
+    {
+        AUTO,
+        "mean",
+        "median",
+        "mode",
+        "constant",
+        "ffill",
+        "bfill",
+        "drop_rows",
+        "none",
+        "knn",
+        "iterative",
+    }
 )
 _OUTLIER_METHODS = frozenset({AUTO, "iqr", "zscore", "modified_zscore", "percentile", "none"})
 _OUTLIER_STRATEGIES = frozenset(
