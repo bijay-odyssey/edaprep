@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
+import numpy as np
 import pandas as pd
 
 from ..config import Config
@@ -26,7 +27,7 @@ def categorical_summary(
     rare_threshold = config.effective_rare_threshold
     high_cardinality = config.effective_high_cardinality
     n_rows = profile.n_rows
-    floor = max(1, int(rare_threshold * n_rows))
+    floor = max(1, int(np.ceil(rare_threshold * n_rows)))
 
     rows: List[dict] = []
     for name in profile.column_order:

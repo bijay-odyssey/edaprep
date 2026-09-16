@@ -418,3 +418,29 @@ def test_config_repr_is_readable() -> None:
     text = repr(config)
     assert "random_state=1" in text
     assert "column override" in text
+
+
+def test_categorical_summary_rare_floor_matches_planner() -> None:
+    """categorical_summary and the planner must agree on the rare-level floor when
+    threshold * n_rows is fractional."""
+    from edaprep.eda.categorical import categorical_summary
+    from edaprep.planning.planner import Planner
+    from edaprep.profiling.profiler import profile
+
+    # threshold=0.01 (default), n_rows=999 -> 0.01 * 999 = 9.99, floor should be ceil(9.99) = 10
+    # 5 levels so planner does not skip due to low cardinality (< 5)
+    data = ["cat_a"] * 250 + ["cat_b"] * 250 + ["cat_c"] * 250 + ["cat_d"] * 240 + ["rare"] * 9
+    df = pd.DataFrame({"c": data, "y": [0] * 999})
+    config = Config(model_family="linear")
+    prof = profile(df, target="y", config=config)
+
+    cat_table = categorical_summary(df, prof, config)
+    row = cat_table.set_index("column").loc["c"]
+    assert row["n_rare_levels"] == 1
+
+    plan = Planner(config).plan(prof)
+    rare_step = [
+        d for d in plan.decisions if d.action == "group_rare_categories" and d.column == "c"
+    ]
+    assert len(rare_step) == 1
+    assert rare_step[0].params["min_count"] == 10
