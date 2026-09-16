@@ -146,7 +146,7 @@ class DataTypeInference(Transformer, ColumnTransformerMixin):
                     stripped = series.astype(object).map(
                         lambda v: v.strip() if isinstance(v, str) else v
                     )
-                    counts["stripped"] = int((stripped != series).sum())
+                    counts["stripped"] = int(((stripped != series) & series.notna()).sum())
                     series = stripped
 
                 if "sentinels_to_nan" in actions:

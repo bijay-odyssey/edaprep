@@ -627,6 +627,16 @@ def test_whitespace_is_stripped() -> None:
     assert out["c"].tolist() == ["USA", "usa", "USA"]
 
 
+def test_whitespace_stripped_count_ignores_missing_values() -> None:
+    frame = pd.DataFrame({"c": [" A ", "B", None, " C "]})
+    context = ctx(frame)
+
+    DataTypeInference(["c"]).fit_transform(frame, None, context)
+
+    entry = context.journal.transform_entries()[-1]
+    assert entry.effect["per_column"]["c"]["stripped"] == 2
+
+
 def test_numeric_strings_are_parsed() -> None:
     gen = np.random.default_rng(15)
     frame = pd.DataFrame({"n": [f"{v:.2f}" for v in gen.normal(50, 10, 200)]})
