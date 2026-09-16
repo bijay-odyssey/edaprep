@@ -455,6 +455,39 @@ def test_ordinal_encoder_marks_unseen_but_keeps_nan_as_nan() -> None:
     assert pd.isna(out["c"].tolist()[2])  # missing stays missing
 
 
+def test_ordinal_encoder_dtype_applied_when_no_missing() -> None:
+    frame = pd.DataFrame({"c": ["apple", "banana", "cherry"]})
+    context = ctx(frame)
+    out_default = OrdinalEncoder(["c"]).fit_transform(frame, None, context)
+    assert out_default["c"].dtype == "int32"
+    assert out_default["c"].tolist() == [0, 1, 2]
+
+    out_int16 = OrdinalEncoder(["c"], dtype="int16").fit_transform(frame, None, context)
+    assert out_int16["c"].dtype == "int16"
+
+
+def test_ordinal_encoder_dtype_fallback_on_missing_and_nullable_support() -> None:
+    train = pd.DataFrame({"c": ["apple", "banana", "cherry"] * 5})
+    context = ctx(train)
+    encoder_int32 = OrdinalEncoder(["c"], dtype="int32").fit(train, None, context)
+
+    # Column with NaN: numpy int32 cannot represent NaN -> safely falls back to float64
+    eval_frame = pd.DataFrame({"c": ["apple", "unknown_fruit", None]})
+    out_fallback = encoder_int32.transform(eval_frame, context)
+    assert out_fallback["c"].dtype == "float64"
+    assert out_fallback["c"].iloc[0] == 0.0
+    assert out_fallback["c"].iloc[1] == -1.0  # unseen
+    assert pd.isna(out_fallback["c"].iloc[2])
+
+    # Nullable Int32: supports missing values -> retains Int32 dtype
+    encoder_nullable = OrdinalEncoder(["c"], dtype="Int32").fit(train, None, context)
+    out_nullable = encoder_nullable.transform(eval_frame, context)
+    assert str(out_nullable["c"].dtype) == "Int32"
+    assert out_nullable["c"].iloc[0] == 0
+    assert out_nullable["c"].iloc[1] == -1
+    assert pd.isna(out_nullable["c"].iloc[2])
+
+
 def test_frequency_encoder_and_unseen_categories() -> None:
     train = pd.DataFrame({"c": ["a"] * 70 + ["b"] * 30})
     context = ctx(train)

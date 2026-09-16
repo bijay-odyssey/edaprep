@@ -437,6 +437,12 @@ class OrdinalEncoder(_CategoricalBase):
     subset of codes, and for genuinely ordered columns.  It imposes a false ordering on
     a nominal column fed to a linear or distance-based model, which is why the planner
     only selects it for ``model_family="tree"`` or ``SemanticType.ORDINAL``.
+
+    The ``dtype`` parameter (default ``"int32"``) is applied to encoded columns. When
+    missing values are present and ``dtype`` cannot represent NA (such as standard numpy
+    integer types), the column safely falls back to ``"float64"`` so downstream imputers
+    can process it. Nullable integer dtypes (e.g. ``"Int32"``) are preserved with missing
+    values.
     """
 
     stage = Stage.ENCODE
@@ -497,7 +503,13 @@ class OrdinalEncoder(_CategoricalBase):
                 # NaN in the input stays NaN so a later imputer can see it; only
                 # genuinely unseen categories get the sentinel code.
                 codes = codes.mask(unknown, self.unknown_value)
-                replacements[column] = codes.astype("float64")
+                if codes.isna().any():
+                    try:
+                        replacements[column] = codes.astype(self.dtype)
+                    except (ValueError, TypeError):
+                        replacements[column] = codes.astype("float64")
+                else:
+                    replacements[column] = codes.astype(self.dtype)
 
             if unknown_counts:
                 context.journal.warn(
