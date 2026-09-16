@@ -910,6 +910,21 @@ def test_text_length_features() -> None:
     assert "t__length" in out.columns and "t__n_words" in out.columns
 
 
+def test_text_length_features_missing() -> None:
+    frame = pd.DataFrame({"t": ["hello world", "a longer sentence here", None, "short", None]})
+    out = TextColumnHandler(strategy="length_features", columns=["t"]).fit_transform(
+        frame, None, ctx(frame)
+    )
+    assert out["t__length"].iloc[0] == 11.0
+    assert out["t__n_words"].iloc[0] == 2.0
+    assert pd.isna(out["t__length"].iloc[2])
+    assert pd.isna(out["t__n_words"].iloc[2])
+    assert pd.isna(out["t__length"].iloc[4])
+    assert pd.isna(out["t__n_words"].iloc[4])
+    assert out["t__length"].iloc[3] == 5.0
+    assert out["t__n_words"].iloc[3] == 1.0
+
+
 # ============================== the contract ===========================================
 
 

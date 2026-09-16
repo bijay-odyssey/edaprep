@@ -106,9 +106,15 @@ class TextColumnHandler(Transformer, ColumnTransformerMixin):
 
         added: Dict[str, pd.Series] = {}
         for column in present:
-            as_str = X[column].astype(str)
-            added[f"{column}__length"] = as_str.str.len().astype("float64")
-            added[f"{column}__n_words"] = as_str.str.split().str.len().astype("float64")
+            series = X[column]
+            mask = series.isna()
+            as_str = series.dropna().astype(str)
+            length = as_str.str.len().astype("float64").reindex(series.index)
+            n_words = as_str.str.split().str.len().astype("float64").reindex(series.index)
+            length[mask] = float("nan")
+            n_words[mask] = float("nan")
+            added[f"{column}__length"] = length
+            added[f"{column}__n_words"] = n_words
         keep = {str(c): X[c] for c in X.columns if str(c) not in present}
         return pd.DataFrame({**keep, **added}, index=X.index, copy=False)
 
