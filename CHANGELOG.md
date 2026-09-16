@@ -7,6 +7,87 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html). While t
 version is `0.x`, the public API may change between minor versions; anything that does
 will be listed under **Changed** with a migration note.
 
+## [0.3.0] — 2026-09-16
+
+A codebase audit ([#36](https://github.com/bijay-odyssey/edaprep/issues/36)–[#47](https://github.com/bijay-odyssey/edaprep/issues/47))
+found twelve genuine bugs in one pass. Seven are fixed here, plus one new feature;
+the remaining five ([#36](https://github.com/bijay-odyssey/edaprep/issues/36),
+[#37](https://github.com/bijay-odyssey/edaprep/issues/37),
+[#38](https://github.com/bijay-odyssey/edaprep/issues/38),
+[#44](https://github.com/bijay-odyssey/edaprep/issues/44),
+[#46](https://github.com/bijay-odyssey/edaprep/issues/46)) are still open — one of
+them (#36) deliberately held back for careful review; see below. Everything shipped
+here landed in less than a day, most of it from new contributors picking issues up
+within hours of them being filed.
+
+### Added
+
+- **`knn` and `iterative` imputation strategies** for `MissingValueHandler`
+  ([#48](https://github.com/bijay-odyssey/edaprep/pull/48), closes
+  [#3](https://github.com/bijay-odyssey/edaprep/issues/3), by
+  [@feyzasagman](https://github.com/feyzasagman)), wrapping scikit-learn's
+  `KNNImputer`/`IterativeImputer` behind the `[advanced]` extra. Both are fitted once
+  in `_fit` and never refit at transform time — asserted directly by a test that
+  monkeypatches `.fit` to raise if called during `transform`. All-missing predictor
+  columns are excluded from the block so they can't distort neighbouring columns; an
+  all-missing *target* column is left as `NaN` with a warning rather than silently
+  producing nothing. Opt-in per column or globally; `"auto"` does not select them yet.
+
+### Fixed
+
+All seven below were found in the same audit and are independent of each other.
+`TargetEncoder`'s cross-fit leak ([#36](https://github.com/bijay-odyssey/edaprep/issues/36))
+is the most severe finding of the audit and is deliberately *not* in this release —
+it touches the library's central leakage guarantee and is being reviewed carefully
+rather than shipped quickly. `Plan.without_columns` silently dropping steps (#37),
+sample-scoped quality detection (#38), timedelta profiling (#44) and duplicate
+column names crashing with opaque errors (#46) are real but still open too.
+
+- **`Config.from_dict` now tolerates retired `Thresholds` and per-column settings**
+  ([#53](https://github.com/bijay-odyssey/edaprep/pull/53), closes
+  [#39](https://github.com/bijay-odyssey/edaprep/issues/39), by
+  [Erol Tasci](https://github.com/Voyagerroc-Lab)), the same warn-and-drop tolerance
+  the top-level fields already had — `n_jobs` was the first case, in 0.2.0. Direct
+  `Config.set_columns()` still raises on an unrecognised key; only `from_dict`
+  (deserialising a report saved by an older version) warns and drops.
+- **`OrdinalEncoder`'s `dtype` parameter is now actually applied**
+  ([#55](https://github.com/bijay-odyssey/edaprep/pull/55), closes
+  [#40](https://github.com/bijay-odyssey/edaprep/issues/40), by
+  [Erol Tasci](https://github.com/Voyagerroc-Lab)), previously silently ignored in
+  favour of a hardcoded `float64`. Falls back to `float64` when a non-nullable
+  integer dtype can't represent a missing value; nullable dtypes (`"Int32"`, ...) are
+  preserved with their missingness intact.
+- **`DateTimeExpander`'s boolean calendar features** (`is_weekend`, `is_month_start`,
+  `is_month_end`, `is_quarter_start`, `is_quarter_end`, `is_year_start`,
+  `is_year_end`) **now propagate `NaN` for a missing date**
+  ([#52](https://github.com/bijay-odyssey/edaprep/pull/52), closes
+  [#41](https://github.com/bijay-odyssey/edaprep/issues/41), by
+  [Erol Tasci](https://github.com/Voyagerroc-Lab)) instead of fabricating `False` —
+  the numeric calendar features already did this correctly; the boolean ones didn't.
+- **`DataTypeInference`'s `"stripped"` journal count no longer counts missing values**
+  ([#56](https://github.com/bijay-odyssey/edaprep/pull/56), closes
+  [#42](https://github.com/bijay-odyssey/edaprep/issues/42), by
+  [Alaa Bakr](https://github.com/alaa-bakr-analyst)). `NaN != NaN` was inflating the
+  count with rows nothing happened to.
+- **`categorical_summary`'s rare-level floor now matches the planner's**
+  ([#54](https://github.com/bijay-odyssey/edaprep/pull/54), closes
+  [#43](https://github.com/bijay-odyssey/edaprep/issues/43), by
+  [Erol Tasci](https://github.com/Voyagerroc-Lab)) — both now round up
+  (`ceil(threshold * n_rows)`); the EDA table previously truncated, so it could
+  report "nothing rare here" for a level the planner would in fact group.
+- **`TextColumnHandler`'s `length_features` no longer measures the string `"nan"`
+  for missing text** ([#50](https://github.com/bijay-odyssey/edaprep/pull/50), closes
+  [#45](https://github.com/bijay-odyssey/edaprep/issues/45), by
+  [Erol Tasci](https://github.com/Voyagerroc-Lab)) — `astype(str)` on the raw column
+  turned a missing value into the literal 3-character string it now excludes before
+  measuring.
+- **`_rule_impute`'s rationale now names `outlier_strategy='impute'`** as the trigger
+  when imputation is planned for a column with genuinely zero missing values
+  ([#49](https://github.com/bijay-odyssey/edaprep/pull/49), closes
+  [#47](https://github.com/bijay-odyssey/edaprep/issues/47), by
+  [Erol Tasci](https://github.com/Voyagerroc-Lab)), rather than reporting a bare,
+  uninformative `0.0% missing`.
+
 ## [0.2.2] — 2026-09-15
 
 ### Fixed
@@ -176,6 +257,7 @@ First public release. Available on PyPI: `pip install edaprep`.
 - No resampling: class imbalance is measured and reported, because resampling belongs
   after the train/test split and with the model.
 
+[0.3.0]: https://github.com/bijay-odyssey/edaprep/releases/tag/v0.3.0
 [0.2.2]: https://github.com/bijay-odyssey/edaprep/releases/tag/v0.2.2
 [0.2.1]: https://github.com/bijay-odyssey/edaprep/releases/tag/v0.2.1
 [0.2.0]: https://github.com/bijay-odyssey/edaprep/releases/tag/v0.2.0
