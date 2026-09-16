@@ -207,9 +207,7 @@ class MissingValueHandler(Transformer, ColumnTransformerMixin):
         KNNImputer, IterativeImputer = _load_sklearn_imputers()
         eligible = self._eligible_numeric_columns(X, context)
         self.imputer_block_all_missing_ = {
-            column
-            for column in eligible
-            if len(X) and int(X[column].isna().sum()) == len(X)
+            column for column in eligible if len(X) and int(X[column].isna().sum()) == len(X)
         }
         block = [column for column in eligible if column not in self.imputer_block_all_missing_]
         self.imputer_block_columns_ = block

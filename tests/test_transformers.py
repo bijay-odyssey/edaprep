@@ -403,9 +403,7 @@ def test_iterative_imputation_uses_correlated_feature_not_median() -> None:
     expected = (2.0 * frame.loc[mask, "y"]).to_numpy()
     assert np.corrcoef(imputed, expected)[0, 1] > 0.95
     assert not np.allclose(imputed, median_fill, rtol=1e-6, atol=1e-6)
-    assert not np.allclose(
-        imputed, median_out.loc[mask, "x"].to_numpy(), rtol=1e-6, atol=1e-6
-    )
+    assert not np.allclose(imputed, median_out.loc[mask, "x"].to_numpy(), rtol=1e-6, atol=1e-6)
 
 
 def test_knn_uses_numeric_predictor_outside_columns_and_leaves_it_unchanged() -> None:
@@ -428,9 +426,9 @@ def test_knn_median_predictor_column_stays_in_imputer_block() -> None:
     """Column y uses median but must still be a KNN predictor for x."""
     frame = _correlated_imputation_frame()
     context = ctx(frame)
-    handler = MissingValueHandler(
-        ["x", "y"], strategy="median", per_column={"x": "knn"}
-    ).fit(frame, None, context)
+    handler = MissingValueHandler(["x", "y"], strategy="median", per_column={"x": "knn"}).fit(
+        frame, None, context
+    )
     assert handler.imputer_block_columns_ == ["x", "y"]
     assert handler.strategies_["y"] == "median"
     out = handler.transform(frame, context)
@@ -497,6 +495,7 @@ def test_sklearn_imputers_are_not_refit_on_transform() -> None:
     context = ctx(frame)
     handler = MissingValueHandler(["x", "y"], strategy="knn").fit(frame, None, context)
     assert handler.knn_imputer_ is not None
+
     def _no_knn_fit(*args, **kwargs):
         raise AssertionError("KNNImputer.fit must not run during transform")
 
