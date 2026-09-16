@@ -14,7 +14,7 @@ column that is mostly missing is reported rather than quietly invented.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Type
 
 import numpy as np
 import pandas as pd
@@ -31,6 +31,45 @@ __all__ = ["MissingValueHandler", "MissingIndicator"]
 _LEARNED = frozenset({"mean", "median", "mode"})
 #: Strategies applied row-wise at transform time with no learned state.
 _ROWWISE = frozenset({"ffill", "bfill"})
+#: Multivariate imputers (scikit-learn, optional dependency).
+_SKLEARN_IMPUTE = frozenset({"knn", "iterative"})
+
+_ADVANCED_INSTALL_MSG = (
+    "Install the optional dependency with: pip install 'edaprep[advanced]' "
+    "(requires scikit-learn>=1.1)."
+)
+
+
+def _valid_imputation_strategies() -> List[str]:
+    return sorted(
+        _LEARNED
+        | _ROWWISE
+        | _SKLEARN_IMPUTE
+        | {"constant", "missing_category", "none", "drop_rows"}
+    )
+
+
+def _is_numeric_imputation_column(series: pd.Series) -> bool:
+    return pd.api.types.is_numeric_dtype(series.dtype) and not pd.api.types.is_bool_dtype(
+        series.dtype
+    )
+
+
+def _load_sklearn_imputers() -> Tuple[Type[Any], Type[Any]]:
+    try:
+        from sklearn.impute import KNNImputer
+    except ImportError as exc:  # pragma: no cover - exercised via mock in tests
+        raise ConfigurationError(
+            f"strategy='knn' or 'iterative' requires scikit-learn. {_ADVANCED_INSTALL_MSG}"
+        ) from exc
+    try:
+        from sklearn.experimental import enable_iterative_imputer  # noqa: F401
+        from sklearn.impute import IterativeImputer
+    except ImportError as exc:  # pragma: no cover
+        raise ConfigurationError(
+            f"strategy='iterative' requires scikit-learn. {_ADVANCED_INSTALL_MSG}"
+        ) from exc
+    return KNNImputer, IterativeImputer
 
 
 class MissingValueHandler(Transformer, ColumnTransformerMixin):
@@ -43,7 +82,8 @@ class MissingValueHandler(Transformer, ColumnTransformerMixin):
         (robust to the skew real tabular data is full of), mode for categorical
         and binary, and an explicit ``"missing"`` category for high-cardinality
         categoricals where the mode is not representative.  Any other value pins
-        every column to that strategy.
+        every column to that strategy.  ``"knn"`` and ``"iterative"`` use
+        scikit-learn multivariate imputers (``edaprep[advanced]``).
     fill_value :
         Used by ``strategy="constant"``.
     per_column :
@@ -117,6 +157,118 @@ class MissingValueHandler(Transformer, ColumnTransformerMixin):
             return "mode"
         return "missing_category"
 
+    def _eligible_numeric_columns(self, X: pd.DataFrame, context: FitContext) -> List[str]:
+        """All numeric columns in ``X`` usable as multivariate predictors (ordered)."""
+        target = context.target
+        eligible: List[str] = []
+        for column in map(str, X.columns):
+            if column == target:
+                continue
+            if not _is_numeric_imputation_column(X[column]):
+                continue
+            eligible.append(column)
+        return eligible
+
+    def _require_numeric_for_sklearn(self, column: str, series: pd.Series) -> None:
+        if _is_numeric_imputation_column(series):
+            return
+        raise ConfigurationError(
+            f"strategy='knn' and 'iterative' are only valid for numeric columns; "
+            f"column {column!r} has dtype {series.dtype}. Use 'mode', "
+            f"'missing_category', or 'median' as appropriate."
+        )
+
+    def _block_matrix(self, X: pd.DataFrame, block: Sequence[str]) -> np.ndarray:
+        """Build a float matrix aligned with ``block`` for sklearn imputers."""
+        n_rows = len(X)
+        matrix = np.empty((n_rows, len(block)), dtype=np.float64)
+        for j, column in enumerate(block):
+            values = pd.to_numeric(X[column], errors="coerce").to_numpy(dtype=np.float64)
+            matrix[:, j] = values
+        return matrix
+
+    def _fit_sklearn_imputers(self, X: pd.DataFrame, context: FitContext) -> None:
+        needs_knn = any(s == "knn" for s in self.strategies_.values())
+        needs_iterative = any(s == "iterative" for s in self.strategies_.values())
+        self.knn_impute_columns_: List[str] = [
+            c for c in self.columns_ if self.strategies_.get(c) == "knn"
+        ]
+        self.iterative_impute_columns_: List[str] = [
+            c for c in self.columns_ if self.strategies_.get(c) == "iterative"
+        ]
+
+        if not needs_knn and not needs_iterative:
+            self.imputer_block_columns_: List[str] = []
+            self.imputer_block_all_missing_: Set[str] = set()
+            self.knn_imputer_ = None
+            self.iterative_imputer_ = None
+            return
+
+        KNNImputer, IterativeImputer = _load_sklearn_imputers()
+        eligible = self._eligible_numeric_columns(X, context)
+        self.imputer_block_all_missing_ = {
+            column for column in eligible if len(X) and int(X[column].isna().sum()) == len(X)
+        }
+        block = [column for column in eligible if column not in self.imputer_block_all_missing_]
+        self.imputer_block_columns_ = block
+
+        if not block:
+            self.knn_imputer_ = None
+            self.iterative_imputer_ = None
+            return
+
+        fit_matrix = self._block_matrix(X, block)
+
+        if needs_knn:
+            self.knn_imputer_ = KNNImputer()
+            self.knn_imputer_.fit(fit_matrix)
+        else:
+            self.knn_imputer_ = None
+
+        if needs_iterative:
+            self.iterative_imputer_ = IterativeImputer(
+                random_state=context.config.random_state,
+                sample_posterior=False,
+            )
+            self.iterative_imputer_.fit(fit_matrix)
+        else:
+            self.iterative_imputer_ = None
+
+    def _apply_sklearn_imputations(
+        self,
+        X: pd.DataFrame,
+        replacements: Dict[str, pd.Series],
+        filled_counts: Dict[str, int],
+    ) -> None:
+        block = self.imputer_block_columns_
+        if not block:
+            return
+
+        transform_matrix = self._block_matrix(X, block)
+        block_index = {name: idx for idx, name in enumerate(block)}
+
+        for imputer, output_columns in (
+            (self.knn_imputer_, self.knn_impute_columns_),
+            (self.iterative_imputer_, self.iterative_impute_columns_),
+        ):
+            if imputer is None:
+                continue
+            imputed = imputer.transform(transform_matrix)
+            for column in output_columns:
+                if column not in X.columns or column not in block_index:
+                    continue
+                series = X[column]
+                mask = series.isna()
+                n_missing = int(mask.sum())
+                if n_missing == 0:
+                    continue
+                col_idx = block_index[column]
+                filled = series.copy()
+                filled.loc[mask] = imputed[mask.to_numpy(), col_idx]
+                replacements[column] = filled
+                after = int(filled.isna().sum())
+                filled_counts[column] = n_missing - after
+
     def _fit(self, X: pd.DataFrame, y: Optional[pd.Series], context: FitContext) -> None:
         self.strategies_: Dict[str, str] = {}
         self.fill_values_: Dict[str, Any] = {}
@@ -135,6 +287,19 @@ class MissingValueHandler(Transformer, ColumnTransformerMixin):
                 if strategy in ("none", "drop_rows"):
                     continue
                 if strategy in _ROWWISE:
+                    continue
+
+                if strategy in _SKLEARN_IMPUTE:
+                    self._require_numeric_for_sklearn(column, series)
+                    if n_missing == len(X):
+                        context.journal.warn(
+                            "no_data_to_learn_fill",
+                            f"Column {column!r} is entirely missing in the training data, "
+                            f"so multivariate imputation cannot learn a fill for it. "
+                            f"Missing values in this column will be left as-is.",
+                            Severity.WARNING,
+                            (column,),
+                        )
                     continue
 
                 if strategy == "constant":
@@ -169,6 +334,8 @@ class MissingValueHandler(Transformer, ColumnTransformerMixin):
                         (column,),
                         {"missing_fraction": round(missing_fraction, 4)},
                     )
+
+            self._fit_sklearn_imputers(X, context)
 
             timer.columns = list(self.columns_)
             timer.params = {"strategy": self.strategy}
@@ -214,7 +381,7 @@ class MissingValueHandler(Transformer, ColumnTransformerMixin):
         raise ConfigurationError.unknown_option(
             "imputation strategy",
             strategy,
-            sorted(_LEARNED | _ROWWISE | {"constant", "missing_category", "none"}),
+            _valid_imputation_strategies(),
         )
 
     def _transform(self, X: pd.DataFrame, context: FitContext) -> pd.DataFrame:
@@ -225,6 +392,8 @@ class MissingValueHandler(Transformer, ColumnTransformerMixin):
         with context.journal.timer(
             self.stage, type(self).__name__, "impute", "transform"
         ) as timer:
+            self._apply_sklearn_imputations(X, replacements, filled_counts)
+
             for column in self.columns_:
                 if column not in X.columns:
                     continue
@@ -239,6 +408,9 @@ class MissingValueHandler(Transformer, ColumnTransformerMixin):
                 if self.add_indicator and n_missing:
                     added[f"{column}__was_missing"] = mask.astype(np.int8)
 
+                if strategy in _SKLEARN_IMPUTE:
+                    continue
+
                 if n_missing == 0:
                     continue
 
@@ -252,12 +424,13 @@ class MissingValueHandler(Transformer, ColumnTransformerMixin):
                         continue
                     replacements[column] = _fill(series, value)
 
-                after = (
-                    int(replacements[column].isna().sum())
-                    if column in replacements
-                    else n_missing
-                )
-                filled_counts[column] = n_missing - after
+                if column not in filled_counts:
+                    after = (
+                        int(replacements[column].isna().sum())
+                        if column in replacements
+                        else n_missing
+                    )
+                    filled_counts[column] = n_missing - after
 
             timer.columns = sorted(filled_counts)
             timer.effect = {

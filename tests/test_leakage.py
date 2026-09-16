@@ -129,6 +129,44 @@ def test_scaler_uses_train_statistics_only(split_frame) -> None:
     np.testing.assert_allclose(out["num"].to_numpy(), expected.to_numpy())
 
 
+def test_imputer_knn_transform_is_independent_of_batching(split_frame) -> None:
+    train, test = split_frame
+    train = train.copy()
+    test = test.copy()
+    train.loc[train.index[:40], "num"] = np.nan
+    test.loc[test.index[:15], "num"] = np.nan
+
+    context = _context(train)
+    handler = MissingValueHandler(["num", "skewed"], strategy="knn").fit(
+        train, train["y"], context
+    )
+    whole = handler.transform(test, context)
+    row_by_row = pd.concat(
+        [handler.transform(test.iloc[[i]], context) for i in range(len(test))],
+        axis=0,
+    )
+    pd.testing.assert_frame_equal(whole, row_by_row)
+
+
+def test_imputer_iterative_transform_is_independent_of_batching(split_frame) -> None:
+    train, test = split_frame
+    train = train.copy()
+    test = test.copy()
+    train.loc[train.index[:40], "num"] = np.nan
+    test.loc[test.index[:15], "num"] = np.nan
+
+    context = _context(train)
+    handler = MissingValueHandler(["num", "skewed"], strategy="iterative").fit(
+        train, train["y"], context
+    )
+    whole = handler.transform(test, context)
+    row_by_row = pd.concat(
+        [handler.transform(test.iloc[[i]], context) for i in range(len(test))],
+        axis=0,
+    )
+    pd.testing.assert_frame_equal(whole, row_by_row)
+
+
 def test_imputer_uses_train_median_only(split_frame) -> None:
     train, test = split_frame
     train = train.copy()
