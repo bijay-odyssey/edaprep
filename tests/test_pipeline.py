@@ -897,3 +897,37 @@ def test_from_dict_round_trip_is_warning_free() -> None:
     assert restored.random_state == 7
     assert restored.verbose is True
     assert restored.column("age").imputation == "median"
+
+
+def test_from_dict_tolerates_retired_thresholds() -> None:
+    """Config.from_dict must drop unrecognised Thresholds settings with a warning."""
+    data = Config().to_dict()
+    data["thresholds"]["old_removed_field"] = 0.5
+
+    with pytest.warns(UserWarning, match="old_removed_field"):
+        restored = Config.from_dict(data)
+
+    assert isinstance(restored, Config)
+    assert not hasattr(restored.thresholds, "old_removed_field")
+
+
+def test_from_dict_tolerates_retired_column_settings() -> None:
+    """Config.from_dict must drop unrecognised per-column settings with a warning."""
+    data = Config().to_dict()
+    data["columns"] = {"age": {"imputation": "median", "old_removed_col_field": "x"}}
+
+    with pytest.warns(UserWarning, match="old_removed_col_field"):
+        restored = Config.from_dict(data)
+
+    assert isinstance(restored, Config)
+    col = restored.get_column("age")
+    assert col is not None
+    assert col.imputation == "median"
+    assert not hasattr(col, "old_removed_col_field")
+
+
+def test_set_columns_still_raises_on_unknown_setting_by_default() -> None:
+    """Direct user-facing set_columns still raises on typo."""
+    config = Config()
+    with pytest.raises(ConfigurationError):
+        config.set_columns({"age": {"typo_option": "bad"}})
