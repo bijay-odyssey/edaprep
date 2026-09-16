@@ -255,6 +255,23 @@ def test_target_encoding_is_cross_fitted() -> None:
     assert corr_oof < corr_naive / 2
 
 
+def test_target_encoder_fold_prior_excludes_each_holdout_target() -> None:
+    """A singleton row's target must not affect its own OOF fallback prior."""
+    frame = pd.DataFrame({"c": list("abcde"), "y": np.zeros(5, dtype=int)})
+
+    baseline = TargetEncoder(["c"], n_folds=5, random_state=0).fit_transform(
+        frame, frame["y"], _context(frame)
+    )["c"]
+
+    for row in frame.index:
+        changed = frame.copy()
+        changed.loc[row, "y"] = 1
+        encoded = TargetEncoder(["c"], n_folds=5, random_state=0).fit_transform(
+            changed, changed["y"], _context(changed)
+        )["c"]
+        assert encoded.loc[row] == pytest.approx(baseline.loc[row])
+
+
 def test_target_encoder_fit_transform_differs_from_fit_then_transform() -> None:
     """The one place the two legitimately differ, and it must be the declared one."""
     gen = np.random.default_rng(6)
