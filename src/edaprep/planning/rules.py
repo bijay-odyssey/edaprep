@@ -452,6 +452,11 @@ def _rule_impute(cp: ColumnProfile, ctx: RuleContext) -> Optional[Decision]:
             f"{cast_missing} placeholder value(s) become NaN when the column is cast, "
             f"so it needs imputation despite reporting 0.0% missing"
         )
+    elif outlier_may_impute:
+        found = (
+            "0.0% missing today, but outlier_strategy='impute' may introduce NaN at the "
+            "OUTLIERS stage that runs before this one"
+        )
     else:
         found = f"{_pct(cp.missing_fraction)} missing"
 

@@ -678,6 +678,24 @@ def test_column_with_no_missing_and_no_placeholders_plans_no_imputation() -> Non
     assert not any(a.startswith("impute_") for a in actions), actions
 
 
+def test_impute_rationale_names_outlier_strategy_when_nothing_is_missing() -> None:
+    """Regression for #47: imputation planned only because outliers may introduce NaN
+    must say so, rather than reporting a bare (and correct, but uninformative) 0%."""
+    gen = np.random.default_rng(5)
+    frame = pd.DataFrame(
+        {"amount": gen.normal(50, 10, size=100), "y": gen.integers(0, 2, size=100)}
+    )
+    assert frame["amount"].isna().sum() == 0
+
+    plan = Planner(Config(random_state=0, outlier_strategy="impute")).plan(
+        profile(frame, target="y")
+    )
+    decision = next(
+        d for d in plan.decisions if d.column == "amount" and d.action.startswith("impute_")
+    )
+    assert "outlier" in decision.rationale
+
+
 def test_placeholder_strings_get_a_missing_indicator() -> None:
     """Placeholder strings become NaN at Stage.CAST, so MISSING_FLAG must plan a flag.
 
