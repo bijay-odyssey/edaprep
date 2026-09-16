@@ -611,6 +611,43 @@ def test_datetime_rejects_unknown_features() -> None:
         DateTimeExpander(["d"], features=["nonsense"]).fit(frame, None, ctx(frame))
 
 
+def test_datetime_boolean_features_retain_nan_for_missing_dates() -> None:
+    boolean_features = [
+        "is_weekend",
+        "is_month_start",
+        "is_month_end",
+        "is_quarter_start",
+        "is_quarter_end",
+        "is_year_start",
+        "is_year_end",
+    ]
+    frame = pd.DataFrame(
+        {"d": pd.to_datetime(["2024-01-01", None, "2024-03-01", "2024-01-06"])}
+    )
+    context = ctx(frame)
+    expander = DateTimeExpander(
+        ["d"],
+        features=["dayofweek", *boolean_features],
+        drop_constant=False,
+    ).fit(frame, None, context)
+    out = expander.transform(frame, context)
+
+    # Row 1 is NaT: all boolean features must be NaN, not 0.0 or False
+    for feat in boolean_features:
+        col = f"d__{feat}"
+        assert col in out.columns
+        assert np.isnan(out.loc[1, col]), f"{col} should be NaN for NaT row"
+
+    # Row 0 is 2024-01-01 (Monday, month start, quarter start, year start):
+    assert out.loc[0, "d__is_weekend"] == 0.0
+    assert out.loc[0, "d__is_month_start"] == 1.0
+    assert out.loc[0, "d__is_quarter_start"] == 1.0
+    assert out.loc[0, "d__is_year_start"] == 1.0
+
+    # Row 3 is 2024-01-06 (Saturday):
+    assert out.loc[3, "d__is_weekend"] == 1.0
+
+
 # ============================== casting ===============================================
 
 
