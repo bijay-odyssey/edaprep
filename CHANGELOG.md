@@ -7,6 +7,35 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html). While t
 version is `0.x`, the public API may change between minor versions; anything that does
 will be listed under **Changed** with a migration note.
 
+## [0.3.1] — 2026-09-18
+
+### Fixed
+
+- **`TargetEncoder`'s out-of-fold encoding no longer leaks through a shared global
+  prior.** ([#58](https://github.com/bijay-odyssey/edaprep/pull/58), closes
+  [#36](https://github.com/bijay-odyssey/edaprep/issues/36), by
+  [@XonkelX](https://github.com/XonkelX)) The most severe finding from the audit
+  behind 0.3.0, present in every release since 0.1.0. `fit_transform`'s per-fold
+  counts were correctly restricted to the other folds, but the smoothing prior mixed
+  into every fold's estimate was `self.prior_`, computed once over the *whole*
+  training target — including the current holdout fold. For a near-singleton
+  category (exactly the case cross-fitting exists to protect), the encoded value
+  collapsed toward a prior partly computed from that row's own target, so a row's
+  out-of-fold encoding was measurably a function of its own label.
+
+  The prior is now computed per fold, from that fold's training partition only, and
+  used consistently for both the smoothing term and the holdout fallback; it falls
+  back to the full-training prior only when a fold's training partition has no
+  finite target values at all, with that written down explicitly rather than left
+  implicit. `self.prior_` is untouched for `transform()` on genuinely new data at
+  prediction time — only the `fit_transform` cross-fitting path needed its own,
+  fold-restricted prior.
+
+  Verified independently before merging: flipping only one row's own label leaves
+  that row's own out-of-fold value unchanged, while other rows correctly still
+  shift when the changed row lands in their training folds — the distinction that
+  actually matters, since only the *self*-leak is the bug.
+
 ## [0.3.0] — 2026-09-16
 
 A codebase audit ([#36](https://github.com/bijay-odyssey/edaprep/issues/36)–[#47](https://github.com/bijay-odyssey/edaprep/issues/47))
@@ -257,6 +286,7 @@ First public release. Available on PyPI: `pip install edaprep`.
 - No resampling: class imbalance is measured and reported, because resampling belongs
   after the train/test split and with the model.
 
+[0.3.1]: https://github.com/bijay-odyssey/edaprep/releases/tag/v0.3.1
 [0.3.0]: https://github.com/bijay-odyssey/edaprep/releases/tag/v0.3.0
 [0.2.2]: https://github.com/bijay-odyssey/edaprep/releases/tag/v0.2.2
 [0.2.1]: https://github.com/bijay-odyssey/edaprep/releases/tag/v0.2.1
