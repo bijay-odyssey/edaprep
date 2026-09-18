@@ -681,11 +681,20 @@ class TargetEncoder(_CategoricalBase):
                     rest = ~holdout
                     if not rest.any():
                         continue
+                    rest_target = target[rest]
+                    # With no finite fold-local target, the full-training prior is the
+                    # only available fallback.  Otherwise the holdout must not
+                    # contribute to either the mapping or its smoothing prior.
+                    fold_prior = (
+                        float(np.nanmean(rest_target))
+                        if np.isfinite(rest_target).any()
+                        else self.prior_
+                    )
                     mapping = _smoothed_means(
-                        series[rest], target[rest], self.prior_, self.smoothing_
+                        series[rest], rest_target, fold_prior, self.smoothing_
                     )
                     encoded = series[holdout].map(mapping)
-                    out[holdout] = encoded.fillna(self.prior_).to_numpy(dtype=np.float64)
+                    out[holdout] = encoded.fillna(fold_prior).to_numpy(dtype=np.float64)
                 replacements[column] = pd.Series(out, index=X.index, name=column)
             timer.columns = list(self.columns_)
             timer.params = {"n_folds": n_folds, "random_state": seed}
