@@ -136,6 +136,24 @@ class PlannedStep:
         return f"{self.transformer}({shown})"
 
 
+def _drop_columns_from_params(params: Dict[str, Any], drop: set[str]) -> Dict[str, Any]:
+    if not params:
+        return {}
+    cleaned = dict(params)
+    for key in (
+        "per_column",
+        "per_column_method",
+        "per_column_strategy",
+        "per_column_features",
+    ):
+        value = cleaned.get(key)
+        if isinstance(value, dict):
+            cleaned[key] = {
+                column: setting for column, setting in value.items() if column not in drop
+            }
+    return cleaned
+
+
 @dataclass(frozen=True)
 class Plan:
     """An ordered, serialisable description of what will be done.
@@ -215,14 +233,17 @@ class Plan:
         drop = set(columns)
         steps: List[PlannedStep] = []
         for step in self.steps:
-            kept = tuple(c for c in step.columns if c not in drop)
-            if not kept:
+            decisions = tuple(d for d in step.decisions if d.column not in drop)
+            if step.decisions and not decisions:
                 continue
+            columns_ = tuple(c for c in step.columns if c not in drop)
+            params = _drop_columns_from_params(step.params, drop)
             steps.append(
                 replace(
                     step,
-                    columns=kept,
-                    decisions=tuple(d for d in step.decisions if d.column not in drop),
+                    columns=columns_,
+                    decisions=decisions,
+                    params=params,
                 )
             )
         return replace(
