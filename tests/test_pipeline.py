@@ -309,9 +309,23 @@ def test_plan_editing_is_non_destructive(frame) -> None:
 
 def test_plan_without_columns(frame) -> None:
     prof = profile(frame, target="y")
-    plan = Planner(Config(random_state=0)).plan(prof)
+    plan = Planner(Config(random_state=0, model_family="linear")).plan(prof)
+
     trimmed = plan.without_columns(["income"])
+
     assert not any(d.column == "income" for d in trimmed.decisions)
+
+    missing = next(s for s in trimmed if s.stage is Stage.MISSING)
+    assert {d.column for d in missing.decisions} == {"age"}
+    assert missing.params["per_column"] == {"age": "median"}
+
+    scale = next(s for s in trimmed if s.stage is Stage.SCALE)
+    assert {d.column for d in scale.decisions} == {"age", "grade", "flag"}
+    assert scale.params["per_column"] == {
+        "age": "standard",
+        "grade": "standard",
+        "flag": "standard",
+    }
 
 
 def test_stage_order_is_the_documented_one(frame) -> None:
