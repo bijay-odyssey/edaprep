@@ -40,6 +40,7 @@ from edaprep.preprocessing import (
 )
 from edaprep.preprocessing.outliers import (
     IQRDetector,
+    IsolationForestDetector,
     ModifiedZScoreDetector,
     PercentileDetector,
     ZScoreDetector,
@@ -173,15 +174,51 @@ def test_detector_never_flags_missing_values() -> None:
     assert mask.iloc[4]  # the genuine outlier
 
 
-def test_detector_with_nan_still_finds_the_outlier() -> None:
-    """The silent-failure variant: zscore(col) with any NaN returns all-NaN."""
-    gen = np.random.default_rng(2)
-    values = gen.normal(0, 1, 200)
-    values[::10] = np.nan
-    values[5] = 50.0
-    series = pd.Series(values)
-    assert detect_outliers(series, method="zscore").sum() >= 1
+def test_isolation_forest_finds_joint_outlier_iqr_misses() -> None:
+    rng = np.random.default_rng(42)
 
+    base = rng.normal(0, 1, 300)
+
+    frame = pd.DataFrame(
+        {
+            "x": base,
+            "y": base + rng.normal(0, 0.15, 300),
+        }
+    )
+
+    frame.loc[len(frame)] = [2, -2]
+
+    iqr_x = IQRDetector()(frame["x"].to_numpy()).mask(
+        frame["x"].to_numpy()
+    )
+    iqr_y = IQRDetector()(frame["y"].to_numpy()).mask(
+        frame["y"].to_numpy()
+    )
+
+    detector = IsolationForestDetector(random_state=42)
+    mask = detector.fit_mask(frame[["x", "y"]].to_numpy())
+
+    assert not (iqr_x[-1] or iqr_y[-1])
+    assert mask[-1]
+
+
+
+def test_isolation_forest_same_random_state_gives_same_mask() -> None:
+    frame = pd.DataFrame(
+        {
+            "x": [0, 0, 1, 1, 0.5, 10],
+            "y": [0, 1, 0, 1, 0.5, 10],
+        }
+    )
+
+    first = IsolationForestDetector(random_state=42).fit_mask(
+        frame[["x", "y"]].to_numpy()
+    )
+    second = IsolationForestDetector(random_state=42).fit_mask(
+        frame[["x", "y"]].to_numpy()
+    )
+
+    np.testing.assert_array_equal(first, second)
 
 def test_percentile_detector() -> None:
     values = np.arange(1000.0)

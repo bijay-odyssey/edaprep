@@ -41,6 +41,8 @@ __all__ = [
     "ZScoreDetector",
     "ModifiedZScoreDetector",
     "PercentileDetector",
+    "MultivariateDetector",
+    "IsolationForestDetector",
     "OutlierHandler",
     "detect_outliers",
 ]
@@ -251,6 +253,77 @@ class PercentileDetector(OutlierDetector):
         return f"PercentileDetector(lower={self.lower}, upper={self.upper})"
 
 
+class MultivariateDetector(ABC):
+    """Learns a row-level outlier mask from multiple columns."""
+
+    name: str = "base"
+
+    @abstractmethod
+    def fit_mask(
+        self,
+        values: np.ndarray,
+        random_state: Optional[int] = None,
+    ) -> np.ndarray:
+        """Fit detector and return row-level outlier mask."""
+
+    @abstractmethod
+    def predict_mask(self, values: np.ndarray) -> np.ndarray:
+        """Return row-level outlier mask for new rows."""
+
+class IsolationForestDetector(MultivariateDetector):
+    """Multivariate outlier detector backed by scikit-learn Isolation Forest."""
+
+    name = "isolation_forest"
+
+    def __init__(
+        self,
+        random_state: Optional[int] = None,
+        contamination: str | float = "auto",
+    ) -> None:
+        self.random_state = random_state
+        self.contamination = contamination
+        self._model = None
+
+    def _load_model(self):
+        try:
+            from sklearn.ensemble import IsolationForest
+        except ImportError as exc:
+            raise ConfigurationError(
+                "IsolationForest requires scikit-learn. "
+                'Install it with: pip install "edaprep[advanced]"'
+            ) from exc
+        return IsolationForest
+
+    def fit_mask(
+        self,
+        values: np.ndarray,
+        random_state: Optional[int] = None,
+    ) -> np.ndarray:
+        seed = (
+            self.random_state
+            if self.random_state is not None
+            else random_state
+        )
+
+        IsolationForest = self._load_model()
+
+        self._model = IsolationForest(
+            contamination=self.contamination,
+            random_state=seed,
+        )
+
+        self._model.fit(values)
+
+        return self._model.predict(values) == -1
+
+    def predict_mask(self, values: np.ndarray) -> np.ndarray:
+        if self._model is None:
+            raise RuntimeError(
+                "IsolationForestDetector must be fitted before prediction."
+            )
+
+        return self._model.predict(values) == -1
+
 _DETECTORS = {
     "iqr": IQRDetector,
     "zscore": ZScoreDetector,
@@ -397,6 +470,9 @@ class OutlierHandler(Transformer, ColumnTransformerMixin):
         self.n_detected_: Dict[str, int] = {}
         self.fraction_detected_: Dict[str, float] = {}
 
+        self.multivariate_masks_: Dict[str, np.ndarray] = {}
+        self.multivariate_detectors_: Dict[str, MultivariateDetector] = {}
+
         thresholds = context.config.thresholds
         cap = (
             self.max_action_fraction
@@ -405,7 +481,69 @@ class OutlierHandler(Transformer, ColumnTransformerMixin):
         )
 
         with context.journal.timer(self.stage, type(self).__name__, "fit", "fit") as timer:
+            if self.method == "isolation_forest":
+                strategy = self.strategy
+
+                if strategy not in ("report", "remove", "ignore"):
+                    raise ConfigurationError(
+                        "IsolationForest supports only "
+                        "'report', 'remove', or 'ignore'."
+                    )
+
+                values = X[self.columns_].apply(
+                    pd.to_numeric,
+                    errors="coerce",
+                )
+
+                valid_rows = values.notna().all(axis=1)
+                mask = np.zeros(len(X), dtype=bool)
+
+                if valid_rows.any():
+                    detector = IsolationForestDetector()
+
+                    valid_values = values.loc[valid_rows].to_numpy(
+                        dtype=np.float64
+                    )
+
+                    valid_mask = detector.fit_mask(
+                        valid_values,
+                        random_state=context.random_state,
+                    )
+
+                    mask[valid_rows.to_numpy()] = valid_mask
+                else:
+                    detector = IsolationForestDetector()
+
+                self.multivariate_masks_["isolation_forest"] = mask
+                self.multivariate_detectors_["isolation_forest"] = detector
+
+                self.strategies_["isolation_forest"] = strategy
+
+                n_flagged = int(np.count_nonzero(mask))
+                n_rows = len(X)
+
+                self.fraction_detected_["isolation_forest"] = (
+                    n_flagged / n_rows if n_rows else 0.0
+                )
+                self.n_detected_["isolation_forest"] = n_flagged
+
+                timer.columns = list(self.columns_)
+                timer.params = {
+                    "method": self.method,
+                    "strategy": self.strategy,
+                }
+                timer.effect = {
+                    "n_columns": len(self.columns_),
+                    "n_detected": dict(self.n_detected_),
+                    "fraction_detected": {
+                        k: round(v, 5)
+                        for k, v in self.fraction_detected_.items()
+                    },
+                }
+                return
+
             for column in self.columns_:
+
                 values = self._numeric_values(X[column])
                 cp = context.column_profile(column)
                 skew = cp.skew if cp is not None and cp.numeric is not None else float("nan")
@@ -499,6 +637,36 @@ class OutlierHandler(Transformer, ColumnTransformerMixin):
         with context.journal.timer(
             self.stage, type(self).__name__, "handle_outliers", "transform"
         ) as timer:
+            if self.method == "isolation_forest":
+                detector = self.multivariate_detectors_["isolation_forest"]
+
+                values = X[self.columns_].apply(
+                    pd.to_numeric,
+                    errors="coerce",
+                )
+
+                valid_rows = values.notna().all(axis=1)
+                mask = np.zeros(len(X), dtype=bool)
+
+                if valid_rows.any():
+                    valid_values = values.loc[valid_rows].to_numpy(
+                        dtype=np.float64
+                    )
+
+                    valid_mask = detector.predict_mask(valid_values)
+
+                    mask[valid_rows.to_numpy()] = valid_mask
+
+                strategy = self.strategies_.get("isolation_forest", "report")
+                affected["isolation_forest"] = int(np.count_nonzero(mask))
+
+                # IsolationForest has no feature-wise bounds,
+                # so report/ignore/remove do not modify feature values.
+                if strategy not in ("report", "ignore", "remove"):
+                    raise ConfigurationError(
+                        "IsolationForest supports only "
+                        "'report', 'remove', or 'ignore'."
+                    )
             for column, bounds in self.bounds_.items():
                 if column not in X.columns:
                     continue
@@ -540,6 +708,14 @@ class OutlierHandler(Transformer, ColumnTransformerMixin):
         operation: the pipeline applies it to the training frame only.
         """
         mask = pd.Series(False, index=X.index)
+
+        if hasattr(self, "multivariate_masks_"):
+            if self.strategies_.get("isolation_forest") == "remove":
+                isolation_mask = self.multivariate_masks_.get("isolation_forest")
+
+                if isolation_mask is not None:
+                    mask |= pd.Series(isolation_mask, index=X.index)
+
         for column, bounds in self.bounds_.items():
             if self.strategies_.get(column) != "remove" or column not in X.columns:
                 continue

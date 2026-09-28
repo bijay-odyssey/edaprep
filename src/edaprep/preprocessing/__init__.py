@@ -22,6 +22,8 @@ from .outliers import (
     ModifiedZScoreDetector,
     OutlierHandler,
     PercentileDetector,
+    MultivariateDetector,
+    IsolationForestDetector,
     ZScoreDetector,
     detect_outliers,
 )
