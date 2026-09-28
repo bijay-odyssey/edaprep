@@ -270,8 +270,13 @@ class MultivariateDetector(ABC):
     def predict_mask(self, values: np.ndarray) -> np.ndarray:
         """Return row-level outlier mask for new rows."""
 
+
 class IsolationForestDetector(MultivariateDetector):
-    """Multivariate outlier detector backed by scikit-learn Isolation Forest."""
+    """Multivariate outlier detector backed by scikit-learn Isolation Forest.
+
+    This detector is selected globally and does not compose with per-column
+    method overrides.
+    """
 
     name = "isolation_forest"
 
@@ -299,11 +304,7 @@ class IsolationForestDetector(MultivariateDetector):
         values: np.ndarray,
         random_state: Optional[int] = None,
     ) -> np.ndarray:
-        seed = (
-            self.random_state
-            if self.random_state is not None
-            else random_state
-        )
+        seed = self.random_state if self.random_state is not None else random_state
 
         IsolationForest = self._load_model()
 
@@ -318,11 +319,10 @@ class IsolationForestDetector(MultivariateDetector):
 
     def predict_mask(self, values: np.ndarray) -> np.ndarray:
         if self._model is None:
-            raise RuntimeError(
-                "IsolationForestDetector must be fitted before prediction."
-            )
+            raise RuntimeError("IsolationForestDetector must be fitted before prediction.")
 
         return self._model.predict(values) == -1
+
 
 _DETECTORS = {
     "iqr": IQRDetector,
@@ -482,12 +482,12 @@ class OutlierHandler(Transformer, ColumnTransformerMixin):
 
         with context.journal.timer(self.stage, type(self).__name__, "fit", "fit") as timer:
             if self.method == "isolation_forest":
+
                 strategy = self.strategy
 
                 if strategy not in ("report", "remove", "ignore"):
                     raise ConfigurationError(
-                        "IsolationForest supports only "
-                        "'report', 'remove', or 'ignore'."
+                        "IsolationForest supports only 'report', 'remove', or 'ignore'."
                     )
 
                 values = X[self.columns_].apply(
@@ -501,9 +501,7 @@ class OutlierHandler(Transformer, ColumnTransformerMixin):
                 if valid_rows.any():
                     detector = IsolationForestDetector()
 
-                    valid_values = values.loc[valid_rows].to_numpy(
-                        dtype=np.float64
-                    )
+                    valid_values = values.loc[valid_rows].to_numpy(dtype=np.float64)
 
                     valid_mask = detector.fit_mask(
                         valid_values,
@@ -536,14 +534,12 @@ class OutlierHandler(Transformer, ColumnTransformerMixin):
                     "n_columns": len(self.columns_),
                     "n_detected": dict(self.n_detected_),
                     "fraction_detected": {
-                        k: round(v, 5)
-                        for k, v in self.fraction_detected_.items()
+                        k: round(v, 5) for k, v in self.fraction_detected_.items()
                     },
                 }
                 return
 
             for column in self.columns_:
-
                 values = self._numeric_values(X[column])
                 cp = context.column_profile(column)
                 skew = cp.skew if cp is not None and cp.numeric is not None else float("nan")
@@ -640,6 +636,9 @@ class OutlierHandler(Transformer, ColumnTransformerMixin):
             if self.method == "isolation_forest":
                 detector = self.multivariate_detectors_["isolation_forest"]
 
+                if detector._model is None:
+                    return X.copy()
+
                 values = X[self.columns_].apply(
                     pd.to_numeric,
                     errors="coerce",
@@ -649,9 +648,7 @@ class OutlierHandler(Transformer, ColumnTransformerMixin):
                 mask = np.zeros(len(X), dtype=bool)
 
                 if valid_rows.any():
-                    valid_values = values.loc[valid_rows].to_numpy(
-                        dtype=np.float64
-                    )
+                    valid_values = values.loc[valid_rows].to_numpy(dtype=np.float64)
 
                     valid_mask = detector.predict_mask(valid_values)
 
@@ -664,8 +661,7 @@ class OutlierHandler(Transformer, ColumnTransformerMixin):
                 # so report/ignore/remove do not modify feature values.
                 if strategy not in ("report", "ignore", "remove"):
                     raise ConfigurationError(
-                        "IsolationForest supports only "
-                        "'report', 'remove', or 'ignore'."
+                        "IsolationForest supports only 'report', 'remove', or 'ignore'."
                     )
             for column, bounds in self.bounds_.items():
                 if column not in X.columns:
@@ -709,12 +705,13 @@ class OutlierHandler(Transformer, ColumnTransformerMixin):
         """
         mask = pd.Series(False, index=X.index)
 
-        if hasattr(self, "multivariate_masks_"):
-            if self.strategies_.get("isolation_forest") == "remove":
-                isolation_mask = self.multivariate_masks_.get("isolation_forest")
-
-                if isolation_mask is not None:
-                    mask |= pd.Series(isolation_mask, index=X.index)
+        if (
+            hasattr(self, "multivariate_masks_")
+            and self.strategies_.get("isolation_forest") == "remove"
+        ):
+            isolation_mask = self.multivariate_masks_.get("isolation_forest")
+            if isolation_mask is not None:
+                mask |= pd.Series(isolation_mask, index=X.index)
 
         for column, bounds in self.bounds_.items():
             if self.strategies_.get(column) != "remove" or column not in X.columns:
@@ -726,6 +723,7 @@ class OutlierHandler(Transformer, ColumnTransformerMixin):
     def summary(self) -> pd.DataFrame:
         """One row per column: method, fence, count and fraction detected on train."""
         rows = []
+
         for column, bounds in self.bounds_.items():
             rows.append(
                 {
@@ -738,4 +736,25 @@ class OutlierHandler(Transformer, ColumnTransformerMixin):
                     "fraction": self.fraction_detected_.get(column, 0.0),
                 }
             )
+
+        if hasattr(self, "multivariate_masks_"):
+            mask = self.multivariate_masks_.get("isolation_forest")
+
+            if mask is not None:
+                rows.append(
+                    {
+                        "column": ", ".join(self.columns_),
+                        "method": "isolation_forest",
+                        "strategy": self.strategies_.get("isolation_forest"),
+                        "lower": None,
+                        "upper": None,
+                        "n_outliers": int(np.count_nonzero(mask)),
+                        "fraction": (
+                            float(np.count_nonzero(mask)) / len(mask)
+                            if len(mask)
+                            else 0.0
+                        ),
+                    }
+                )
+
         return pd.DataFrame(rows)
