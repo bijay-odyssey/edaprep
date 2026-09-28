@@ -7,6 +7,24 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html). While t
 version is `0.x`, the public API may change between minor versions; anything that does
 will be listed under **Changed** with a migration note.
 
+## [0.3.2] — 2026-09-28
+
+### Fixed
+
+- **`Plan.without_columns` no longer drops unrelated stages.** ([#60](https://github.com/bijay-odyssey/edaprep/pull/60), closes
+  [#37](https://github.com/bijay-odyssey/edaprep/issues/37), by
+  [@sanjana658](https://github.com/sanjana658)) `MISSING` and `SCALE` steps always
+  plan with `columns=()` by design — their real per-column scope lives in
+  `step.decisions`/`step.params["per_column"]`, resolved at fit time so columns
+  created later (calendar features, one-hot indicators) still get handled. Because
+  `without_columns` decided whether a step survived by checking `step.columns`,
+  those two stages (and `DEDUPLICATE`) were dropped *entirely* whenever any column at
+  all was removed — even a single unrelated one — silently leaving every other
+  column unimputed and unscaled with no error anywhere. Survival is now decided by
+  whether the step still has decisions for a column outside the drop set, and the
+  dropped column's entries are stripped from `per_column`/`per_column_method`/
+  `per_column_strategy`/`per_column_features` rather than left stale.
+
 ## [0.3.1] — 2026-09-18
 
 ### Fixed
@@ -286,6 +304,7 @@ First public release. Available on PyPI: `pip install edaprep`.
 - No resampling: class imbalance is measured and reported, because resampling belongs
   after the train/test split and with the model.
 
+[0.3.2]: https://github.com/bijay-odyssey/edaprep/releases/tag/v0.3.2
 [0.3.1]: https://github.com/bijay-odyssey/edaprep/releases/tag/v0.3.1
 [0.3.0]: https://github.com/bijay-odyssey/edaprep/releases/tag/v0.3.0
 [0.2.2]: https://github.com/bijay-odyssey/edaprep/releases/tag/v0.2.2
