@@ -19,7 +19,9 @@ from .encoding import (
 from .missing import MissingIndicator, MissingValueHandler
 from .outliers import (
     IQRDetector,
+    IsolationForestDetector,
     ModifiedZScoreDetector,
+    MultivariateDetector,
     OutlierHandler,
     PercentileDetector,
     ZScoreDetector,
@@ -50,6 +52,8 @@ __all__ = [
     "ModifiedZScoreDetector",
     "PercentileDetector",
     "detect_outliers",
+    "IsolationForestDetector",
+    "MultivariateDetector",
     "CategoricalEncoder",
     "OneHotEncoder",
     "BinaryEncoder",

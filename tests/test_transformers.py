@@ -40,6 +40,7 @@ from edaprep.preprocessing import (
 )
 from edaprep.preprocessing.outliers import (
     IQRDetector,
+    IsolationForestDetector,
     ModifiedZScoreDetector,
     PercentileDetector,
     ZScoreDetector,
@@ -181,6 +182,58 @@ def test_detector_with_nan_still_finds_the_outlier() -> None:
     values[5] = 50.0
     series = pd.Series(values)
     assert detect_outliers(series, method="zscore").sum() >= 1
+
+
+def test_isolation_forest_finds_joint_outlier_iqr_misses() -> None:
+    rng = np.random.default_rng(42)
+
+    base = rng.normal(0, 1, 300)
+
+    frame = pd.DataFrame(
+        {
+            "x": base,
+            "y": base + rng.normal(0, 0.15, 300),
+        }
+    )
+
+    frame.loc[len(frame)] = [2, -2]
+
+    iqr_x = IQRDetector()(frame["x"].to_numpy()).mask(frame["x"].to_numpy())
+    iqr_y = IQRDetector()(frame["y"].to_numpy()).mask(frame["y"].to_numpy())
+
+    detector = IsolationForestDetector(random_state=42)
+    mask = detector.fit_mask(frame[["x", "y"]].to_numpy())
+
+    assert not (iqr_x[-1] or iqr_y[-1])
+    assert mask[-1]
+
+
+def test_isolation_forest_same_random_state_gives_same_mask() -> None:
+    frame = pd.DataFrame(
+        {
+            "x": [0, 0, 1, 1, 0.5, 10],
+            "y": [0, 1, 0, 1, 0.5, 10],
+        }
+    )
+
+    first = IsolationForestDetector(random_state=42).fit_mask(frame[["x", "y"]].to_numpy())
+    second = IsolationForestDetector(random_state=42).fit_mask(frame[["x", "y"]].to_numpy())
+
+    np.testing.assert_array_equal(first, second)
+
+
+def test_isolation_forest_all_nan_at_fit_leaves_valid_rows_unflagged_at_transform() -> None:
+    """Nothing learnable at fit time must mean 'unflagged', not a crash, like every
+    other detector's answer to a fence that can't be computed."""
+    train = pd.DataFrame({"x": [np.nan] * 10, "y": [np.nan] * 10})
+    test = pd.DataFrame({"x": [0.0, 1.0, 100.0], "y": [0.0, 1.0, 100.0]})
+
+    handler = OutlierHandler(["x", "y"], method="isolation_forest", strategy="report")
+    handler.fit(train, None, ctx(train))
+    out = handler.transform(test, ctx(train))
+
+    assert list(out.columns) == list(test.columns)
+    pd.testing.assert_frame_equal(out, test)
 
 
 def test_percentile_detector() -> None:

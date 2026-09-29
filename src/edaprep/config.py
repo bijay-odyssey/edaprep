@@ -50,7 +50,17 @@ _MISSING_STRATEGIES = frozenset(
         "iterative",
     }
 )
-_OUTLIER_METHODS = frozenset({AUTO, "iqr", "zscore", "modified_zscore", "percentile", "none"})
+_OUTLIER_METHODS = frozenset(
+    {
+        AUTO,
+        "iqr",
+        "zscore",
+        "modified_zscore",
+        "percentile",
+        "isolation_forest",
+        "none",
+    }
+)
 _OUTLIER_STRATEGIES = frozenset(
     {AUTO, "report", "clip", "winsorize", "impute", "remove", "ignore"}
 )
