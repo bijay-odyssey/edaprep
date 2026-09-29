@@ -482,7 +482,6 @@ class OutlierHandler(Transformer, ColumnTransformerMixin):
 
         with context.journal.timer(self.stage, type(self).__name__, "fit", "fit") as timer:
             if self.method == "isolation_forest":
-
                 strategy = self.strategy
 
                 if strategy not in ("report", "remove", "ignore"):
@@ -635,24 +634,28 @@ class OutlierHandler(Transformer, ColumnTransformerMixin):
         ) as timer:
             if self.method == "isolation_forest":
                 detector = self.multivariate_detectors_["isolation_forest"]
-
-                if detector._model is None:
-                    return X.copy()
-
-                values = X[self.columns_].apply(
-                    pd.to_numeric,
-                    errors="coerce",
-                )
-
-                valid_rows = values.notna().all(axis=1)
                 mask = np.zeros(len(X), dtype=bool)
 
-                if valid_rows.any():
-                    valid_values = values.loc[valid_rows].to_numpy(dtype=np.float64)
+                if detector._model is not None:
+                    values = X[self.columns_].apply(
+                        pd.to_numeric,
+                        errors="coerce",
+                    )
 
-                    valid_mask = detector.predict_mask(valid_values)
+                    valid_rows = values.notna().all(axis=1)
 
-                    mask[valid_rows.to_numpy()] = valid_mask
+                    if valid_rows.any():
+                        valid_values = values.loc[valid_rows].to_numpy(dtype=np.float64)
+
+                        valid_mask = detector.predict_mask(valid_values)
+
+                        mask[valid_rows.to_numpy()] = valid_mask
+                    # else: nothing in this batch has every column present, so there
+                    # is nothing to score -- mask stays all-False, same as "nothing
+                    # learnable at fit time" below.
+                # else: fit saw no valid rows at all, so there is nothing this
+                # detector could have learned; leave every row unflagged rather than
+                # raising, matching how every other detector handles "no fence".
 
                 strategy = self.strategies_.get("isolation_forest", "report")
                 affected["isolation_forest"] = int(np.count_nonzero(mask))
@@ -750,9 +753,7 @@ class OutlierHandler(Transformer, ColumnTransformerMixin):
                         "upper": None,
                         "n_outliers": int(np.count_nonzero(mask)),
                         "fraction": (
-                            float(np.count_nonzero(mask)) / len(mask)
-                            if len(mask)
-                            else 0.0
+                            float(np.count_nonzero(mask)) / len(mask) if len(mask) else 0.0
                         ),
                     }
                 )

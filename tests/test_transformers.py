@@ -222,6 +222,20 @@ def test_isolation_forest_same_random_state_gives_same_mask() -> None:
     np.testing.assert_array_equal(first, second)
 
 
+def test_isolation_forest_all_nan_at_fit_leaves_valid_rows_unflagged_at_transform() -> None:
+    """Nothing learnable at fit time must mean 'unflagged', not a crash, like every
+    other detector's answer to a fence that can't be computed."""
+    train = pd.DataFrame({"x": [np.nan] * 10, "y": [np.nan] * 10})
+    test = pd.DataFrame({"x": [0.0, 1.0, 100.0], "y": [0.0, 1.0, 100.0]})
+
+    handler = OutlierHandler(["x", "y"], method="isolation_forest", strategy="report")
+    handler.fit(train, None, ctx(train))
+    out = handler.transform(test, ctx(train))
+
+    assert list(out.columns) == list(test.columns)
+    pd.testing.assert_frame_equal(out, test)
+
+
 def test_percentile_detector() -> None:
     values = np.arange(1000.0)
     bounds = PercentileDetector(0.01, 0.99)(values)
